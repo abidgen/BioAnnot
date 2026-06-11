@@ -1,0 +1,239 @@
+{
+  "pubmed": {
+    "gene_symbol": "KRAS",
+    "functions": [
+      "GTPase functioning as a molecular switch in RAS signal transduction",
+      "Activates downstream MAPK/ERK signaling",
+      "Drives oncogenic proliferation when mutated",
+      "Modulates PI3K-AKT signaling",
+      "Promotes tumorigenesis and immunosuppressive tumor microenvironment when mutated"
+    ],
+    "pathways": [
+      "Signaling by RAS mutants",
+      "MAPK signaling pathway",
+      "PI3K-AKT signaling pathway",
+      "Integrated stress response (ISR)",
+      "JAK/STAT signaling pathway"
+    ],
+    "disease_associations": [
+      {
+        "disease": "Pancreatic ductal adenocarcinoma",
+        "role": "oncogene",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Non-small cell lung cancer",
+        "role": "oncogene",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Invasive mucinous adenocarcinoma of the lung",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Colorectal carcinoma",
+        "role": "oncogene",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Biliary tract carcinoma",
+        "role": "oncogene",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Appendiceal mucinous adenocarcinoma",
+        "role": "oncogene",
+        "evidence_strength": "weak"
+      },
+      {
+        "disease": "Thyroid carcinoma",
+        "role": "biomarker",
+        "evidence_strength": "weak"
+      }
+    ],
+    "interactors": [
+      "SHP2",
+      "ATF3",
+      "ASNS",
+      "ERO1L",
+      "HRD1",
+      "HIF1A",
+      "TP53",
+      "STK11",
+      "KEAP1",
+      "MBOAT2",
+      "NFKB1"
+    ],
+    "cellular_states": [
+      "KRAS-driven pancreatic cancer cells (PANC-1, BxPC-3, 2838c3)",
+      "NSCLC tumor cells",
+      "KRAS inhibitor-resistant tumor cells"
+    ],
+    "druggability_notes": "Multiple mentions of druggability: direct KRAS inhibitors (KRASi) including KRAS-specific inhibitor MRTX1133; allosteric SHP2 inhibitors targeting upstream KRAS signaling; combination strategies with ERK inhibitor (Ulixertinib), PI3K inhibitor (BKM-120), and PERK inhibitor to overcome resistance. Acquired resistance to KRAS inhibitors via ATF3-ASNS asparagine metabolic reprogramming is a major therapeutic barrier. KRAS Q61, G12D and other mutational subtypes (Q61H, Q61L) noted with distinct clinical/treatment relevance.",
+    "confidence": 0.82,
+    "source_pmids": [
+      "42272773",
+      "42272274",
+      "42271507",
+      "42271443",
+      "42270775",
+      "42270536",
+      "42268349",
+      "42266674",
+      "42266318",
+      "42263374",
+      "42262212",
+      "42261704",
+      "42261691",
+      "42259905",
+      "42259884",
+      "42258763",
+      "42258443",
+      "42258402",
+      "42256296",
+      "42255853"
+    ]
+  },
+  "uniprot": {
+    "gene_symbol": "KRAS",
+    "functions": [
+      "Signal transducer in the Ras-MAPK signaling pathway regulating cell proliferation and survival",
+      "Binds GDP/GTP and possesses intrinsic GTPase activity",
+      "Activates MAPK1/MAPK3 leading to phosphorylation and degradation of GJA1",
+      "Promotes oncogenic transcriptional silencing of tumor suppressor genes in colorectal cancer via ZNF304",
+      "Acts as a molecular switch in Ras protein signal transduction",
+      "Substrate for LZTR1-mediated ubiquitination by a BCR (BTB-CUL3-RBX1) E3 ligase complex"
+    ],
+    "pathways": [
+      "Signaling by RAS",
+      "RAF/MAP kinase cascade",
+      "MAPK family signaling cascades",
+      "Signaling by Receptor Tyrosine Kinases"
+    ],
+    "confidence": 0.95,
+    "disease_associations": [
+      {
+        "disease": "Colorectal cancer",
+        "role": "oncogene",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Cardiomyopathy",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Ectodermal dysplasia",
+        "role": "biomarker",
+        "evidence_strength": "weak"
+      },
+      {
+        "disease": "Intellectual disability",
+        "role": "biomarker",
+        "evidence_strength": "weak"
+      },
+      {
+        "disease": "Deafness",
+        "role": "biomarker",
+        "evidence_strength": "weak"
+      }
+    ],
+    "cellular_states": [
+      "Colorectal cancer (CRC) cells",
+      "Cardiac muscle cells (cardiomyocyte proliferation)",
+      "Myoblasts (myoblast proliferation)",
+      "Senescent cells"
+    ],
+    "interactors": [
+      "MAPK1",
+      "MAPK3",
+      "GJA1",
+      "ZNF304",
+      "LZTR1",
+      "CUL3",
+      "RBX1"
+    ],
+    "druggability_notes": "Classified as a proto-oncogene and GTP-binding hydrolase with nucleotide-binding (GDP/GTP/GMP) sites; undergoes prenylation and palmitoylation for membrane targeting. No explicit druggable pocket or drug class is described in the provided text.",
+    "source_pmids": []
+  },
+  "opentargets": {
+    "gene_symbol": "KRAS",
+    "functions": [
+      "Binds GDP/GTP and possesses intrinsic GTPase activity",
+      "Regulation of cell proliferation",
+      "Activates MAPK1/MAPK3 (RAF/MAP kinase cascade)",
+      "Promotes phosphorylation and degradation of GJA1 via MAPK signaling",
+      "Induces transcriptional silencing of tumor suppressor genes in colorectal cancer in a ZNF304-dependent manner",
+      "Functions as a molecular switch in receptor tyrosine kinase signal transduction"
+    ],
+    "pathways": [
+      "Signalling to RAS (R-HSA-167044)",
+      "RAF/MAP kinase cascade (R-HSA-5673001)",
+      "Signaling downstream of RAS mutants (R-HSA-9649948)",
+      "Signaling by RAS GTPase mutants (R-HSA-9753512)",
+      "Regulation of RAS by GAPs (R-HSA-5658442)",
+      "RAS signaling downstream of NF1 loss-of-function variants (R-HSA-6802953)",
+      "SOS-mediated signalling (R-HSA-112412)",
+      "RAS processing (R-HSA-9648002)",
+      "MAP2K and MAPK activation (R-HSA-5674135)",
+      "RAF activation (R-HSA-5673000)",
+      "Insulin receptor signalling cascade (R-HSA-74751)",
+      "MET activates RAS signaling (R-HSA-8851805)"
+    ],
+    "disease_associations": [
+      {
+        "disease": "Noonan syndrome 3",
+        "role": "biomarker",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "cardiofaciocutaneous syndrome 2",
+        "role": "biomarker",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Noonan syndrome",
+        "role": "biomarker",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "non-small cell lung carcinoma",
+        "role": "oncogene",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "cardiofaciocutaneous syndrome",
+        "role": "biomarker",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "gastric cancer",
+        "role": "oncogene",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "acute myeloid leukemia",
+        "role": "oncogene",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "colorectal cancer",
+        "role": "oncogene",
+        "evidence_strength": "moderate"
+      }
+    ],
+    "interactors": [
+      "MAPK1",
+      "MAPK3",
+      "GJA1",
+      "ZNF304"
+    ],
+    "cellular_states": [
+      "colorectal cancer cells",
+      "non-small cell lung carcinoma cells"
+    ],
+    "confidence": 0.95,
+    "source_pmids": []
+  }
+}

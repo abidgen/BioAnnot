@@ -1,0 +1,1 @@
+# stub — Reactome pathway fetcher

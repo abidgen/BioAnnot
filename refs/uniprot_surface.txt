@@ -1,0 +1,3 @@
+# Surface proteome gene list (optional filter)
+# Add one gene symbol per line
+# Source: UniProt surface proteome / Cell Surface Protein Atlas

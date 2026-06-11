@@ -1,0 +1,796 @@
+{
+  "EGFR": {
+    "gene_symbol": "EGFR",
+    "functions": [
+      "Receptor tyrosine kinase binding EGF-family ligands (EGF, TGFA, AREG, EPGN, BTC, EREG, HBEGF)",
+      "Ligand binding triggers receptor homo- and heterodimerization and autophosphorylation on cytoplasmic residues",
+      "Recruits adapter protein GRB2 to activate downstream signaling cascades",
+      "Activates RAS-RAF-MEK-ERK, PI3K-AKT, PLCgamma-PKC, and STAT signaling modules",
+      "May activate NF-kappa-B signaling cascade",
+      "Phosphorylates RGS16 to activate its GTPase activity, coupling EGFR to GPCR signaling",
+      "Phosphorylates MUC1, increasing its interaction with SRC and CTNNB1/beta-catenin",
+      "Positively regulates cell migration via interaction with CCDC88A/GIV; functions as host cell receptor for virus entry (HCV)"
+    ],
+    "pathways": [
+      "NON-CANONICAL: Signaling by EGFR (R-HSA-177929)",
+      "NON-CANONICAL: PI3K-AKT signaling",
+      "NON-CANONICAL: RAS-RAF-MEK-ERK cascade",
+      "NON-CANONICAL: PLCgamma-PKC signaling",
+      "NON-CANONICAL: STAT signaling",
+      "NON-CANONICAL: NF-kappa-B signaling cascade",
+      "NON-CANONICAL: SHC1 events in EGFR signaling (R-HSA-180336)",
+      "NON-CANONICAL: GRB2 events in EGFR signaling (R-HSA-179812)",
+      "NON-CANONICAL: EGFR interacts with phospholipase C-gamma (R-HSA-212718)",
+      "NON-CANONICAL: GAB1 signalosome (R-HSA-180292)",
+      "NON-CANONICAL: EGFR downregulation (R-HSA-182971)",
+      "NON-CANONICAL: Constitutive Signaling by EGFRvIII (R-HSA-5637810)",
+      "NON-CANONICAL: Constitutive Signaling by Ligand-Responsive EGFR Cancer Variants (R-HSA-1236382)",
+      "NON-CANONICAL: Inhibition of Signaling by Overexpressed EGFR (R-HSA-5638303)",
+      "NON-CANONICAL: RAF/MAP kinase cascade (R-HSA-5673001)",
+      "NON-CANONICAL: PIP3 activates AKT signaling (R-HSA-1257604)",
+      "NON-CANONICAL: Clathrin-mediated endocytosis (R-HSA-8856828)",
+      "NON-CANONICAL: Signaling by ERBB2 (R-HSA-1227986)",
+      "NON-CANONICAL: EGFR/PI3K/Akt signaling pathway",
+      "NON-CANONICAL: PLAGL2/EGFR/HIF-1\u03b1-HIF-2\u03b1 signaling axis"
+    ],
+    "disease_associations": [
+      {
+        "disease": "Non-small cell lung cancer / lung adenocarcinoma",
+        "role": "oncogene",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Non-small cell lung carcinoma",
+        "role": "therapeutic_target",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Lung cancer",
+        "role": "oncogene",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Breast cancer",
+        "role": "oncogene",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Colorectal adenocarcinoma",
+        "role": "therapeutic_target",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Head and neck squamous cell carcinoma",
+        "role": "oncogene",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Glioblastoma multiforme",
+        "role": "oncogene",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Alzheimer's disease (neuronal injury)",
+        "role": "unknown",
+        "evidence_strength": "weak"
+      }
+    ],
+    "cellular_states": [
+      "Lung adenocarcinoma cells (A549, H1299 NSCLC)",
+      "Epithelial cells",
+      "Fibroblasts",
+      "Neurons (hippocampal; SK-N-SH, SH-SY5Y)",
+      "Hepatocytes (HCV entry)",
+      "Migrating cells following ligand stimulation",
+      "Mammary gland myoepithelial cells"
+    ],
+    "interactors": [
+      "EGF",
+      "TGFA",
+      "AREG",
+      "EPGN",
+      "BTC",
+      "EREG",
+      "HBEGF",
+      "GRB2",
+      "RGS16",
+      "MUC1",
+      "SRC",
+      "CTNNB1",
+      "CCDC88A",
+      "CD81",
+      "CLDN1",
+      "PIK3CA",
+      "PIK3CB",
+      "ESR1",
+      "PLAGL2",
+      "HIF1A",
+      "EPAS1"
+    ],
+    "druggability_notes": "EGFR is a well-established therapeutic target with a cytoplasmic ATP-binding tyrosine kinase domain (nucleotide-binding, autophosphorylation residues) and ligand-binding ectodomain. Clinical drug classes include: (1) EGFR tyrosine kinase inhibitors (e.g., afatinib) for EGFR-mutant NSCLC; (2) bispecific antibodies (e.g., amivantamab) plus chemotherapy for uncommon mutations such as G719A; (3) anti-receptor monoclonal antibodies for overexpressed EGFR (R-HSA-5638303). Oncogenic variants include EGFRvIII and ligand-responsive cancer variants (R-HSA-1236382, R-HSA-5637810). Molecular docking against PDB ID 1XKK indicates a druggable small-molecule binding pocket (e.g., phytochemical aspidinol binding affinity \u22128.6 kcal/mol).",
+    "confidence": 0.775,
+    "source_pmids": [
+      "42268565",
+      "42268784",
+      "42268785",
+      "42269232",
+      "42269422",
+      "42269611",
+      "42270590",
+      "42270806",
+      "42271059",
+      "42271288",
+      "42271410",
+      "42271512",
+      "42272259",
+      "42272280",
+      "42272656",
+      "42272944",
+      "42273126",
+      "42273144",
+      "42273257",
+      "42273793"
+    ],
+    "source_count": 3,
+    "merged_at": "2026-06-11T15:27:52Z"
+  },
+  "TP53": {
+    "gene_symbol": "TP53",
+    "functions": [
+      "Tumor suppressor inducing growth arrest or apoptosis depending on physiological context and cell type",
+      "Sequence-specific DNA-binding transcription factor that activates or represses target genes upon binding to response elements",
+      "Regulation of apoptosis via stimulation of BAX and FAS expression and repression of BCL2",
+      "Cell cycle checkpoint control and arrest via transactivation of CDKN1A/p21 and prevention of CDK7 kinase activity in CAK complex",
+      "DNA damage response and promotion of DNA repair",
+      "Maintenance of genomic stability",
+      "Activates oxidative stress-induced necrosis in cooperation with mitochondrial PPIF (largely transcription-independent)",
+      "Regulates the circadian clock by repressing CLOCK-BMAL1-mediated transactivation of PER2"
+    ],
+    "pathways": [
+      "Transcriptional Regulation by TP53",
+      "TP53 Regulates Transcription of Cell Cycle Genes",
+      "TP53 Regulates Transcription of Genes Involved in Cytochrome C Release",
+      "Intrinsic Pathway for Apoptosis",
+      "NON-CANONICAL: DNA Damage Response",
+      "Cellular Senescence",
+      "TP53 Regulates Transcription of DNA Repair Genes",
+      "Oxidative Stress Induced Senescence",
+      "TP53 Regulates Transcription of Caspase Activators and Caspases",
+      "G2/M DNA damage checkpoint",
+      "TP53 Regulates Metabolic Genes",
+      "TP53 Regulates Transcription of Death Receptors and Ligands",
+      "TP53 Regulates Transcription of Genes Involved in G2 Cell Cycle Arrest",
+      "Regulation of TP53 Activity through Phosphorylation",
+      "Regulation of TP53 Activity through Acetylation",
+      "TP53 Regulates Transcription of Genes Involved in G1 Cell Cycle Arrest",
+      "Regulation of TP53 Activity through Association with Co-factors",
+      "Regulation of TP53 Degradation",
+      "Loss of function of TP53 in cancer due to loss of tetramerization ability",
+      "Activation of NOXA and translocation to mitochondria",
+      "Stabilization of p53",
+      "NON-CANONICAL: Transcriptional activation of cell cycle inhibitor p21",
+      "Activation of PUMA and translocation to mitochondria",
+      "SUMOylation of transcription cofactors",
+      "Regulation of PTEN gene transcription",
+      "PI5P Regulates TP53 Acetylation",
+      "Pyroptosis",
+      "DNA Damage/Telomere Stress Induced Senescence",
+      "Cell Cycle Checkpoints",
+      "DNA Repair",
+      "NON-CANONICAL: Circadian Clock",
+      "NON-CANONICAL: Notch Signaling Pathway"
+    ],
+    "disease_associations": [
+      {
+        "disease": "Li-Fraumeni syndrome",
+        "role": "tumor_suppressor",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Cancer (multiple tumor types)",
+        "role": "tumor_suppressor",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Dedifferentiated liposarcoma",
+        "role": "therapeutic_target",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Lung adenocarcinoma",
+        "role": "tumor_suppressor",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Hepatocellular carcinoma",
+        "role": "tumor_suppressor",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Head and neck squamous cell carcinoma",
+        "role": "tumor_suppressor",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Hereditary breast cancer",
+        "role": "tumor_suppressor",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Colorectal cancer",
+        "role": "tumor_suppressor",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Esophageal cancer",
+        "role": "tumor_suppressor",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Choroid plexus papilloma",
+        "role": "tumor_suppressor",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Acute myeloid leukemia",
+        "role": "tumor_suppressor",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Silent corticotroph adenoma",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Malignant meningioma",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Oral tongue squamous cell carcinoma",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Pancreatic cancer",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Non-small cell lung cancer",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Laryngeal squamous cell carcinoma",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Prostate cancer",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Luminal B-like breast cancer",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Heart failure",
+        "role": "therapeutic_target",
+        "evidence_strength": "weak"
+      }
+    ],
+    "interactors": [
+      "MDM2",
+      "MDM4",
+      "AKT1",
+      "IL6",
+      "ATRX",
+      "DAXX",
+      "PPP1R13B",
+      "TP53BP2",
+      "PPP1R13L",
+      "PPIF",
+      "BAX",
+      "FAS",
+      "BCL2",
+      "CLOCK",
+      "BMAL1",
+      "PER2",
+      "CDK7",
+      "COP1"
+    ],
+    "druggability_notes": "Contains a zinc ion-binding DNA-binding domain with available 3D structures. MDM2/MDM4 interaction interface is a validated therapeutic target; MDM2-p53 antagonist brigimadlin (vs doxorubicin, NCT05218499/Brightline-1) showed 22.3% ORR in MDM2-amplified dedifferentiated liposarcoma, though PFS primary endpoint was not met. Pro-apoptotic activity is modulated by ASPP-family regulators: PPP1R13B/ASPP1 and TP53BP2/ASPP2 activate, while PPP1R13L/iASPP inhibits \u2014 representing additional protein-protein interaction interfaces for therapeutic modulation. Tetramerization domain loss is a recognized cancer mechanism (R-HSA-9723905), making this domain also relevant. p53 IHC staining patterns serve as surrogate for TP53 mutation status. Germline pathogenic TP53 variants are NCCN-recognized prostate cancer risk variants.",
+    "cellular_states": [
+      "Silent corticotroph adenoma cells (high-CNV, aggressive)",
+      "Cardiomyocytes (doxorubicin-induced heart failure model)",
+      "LUAD epithelial cells",
+      "Malignant meningioma cells",
+      "Pancreatic tumor cells",
+      "Cells undergoing DNA damage response",
+      "Cells under oxidative/ER stress",
+      "Hematopoietic stem and progenitor cells",
+      "Senescent cells (oxidative stress and oncogene-induced)",
+      "Apoptotic thymocytes",
+      "Cells in G1 and G2/M cell cycle arrest",
+      "Cells undergoing oxidative stress-induced necrosis"
+    ],
+    "confidence": 0.792,
+    "source_pmids": [
+      "42260076",
+      "42260443",
+      "42260568",
+      "42260654",
+      "42260782",
+      "42261704",
+      "42262879",
+      "42262988",
+      "42263480",
+      "42264930",
+      "42265755",
+      "42266737",
+      "42268294",
+      "42268349",
+      "42268459",
+      "42269376",
+      "42270069",
+      "42270842",
+      "42271471",
+      "42273717"
+    ],
+    "source_count": 3,
+    "merged_at": "2026-06-11T15:28:37Z"
+  },
+  "FOXF1": {
+    "gene_symbol": "FOXF1",
+    "functions": [
+      "Forkhead box (FOX) transcription factor that shapes chromatin accessibility and defines senescence-specific enhancer landscapes",
+      "Stimulates H3K27 acetylation and chromatin opening at de novo enhancers of pro-inflammatory SASP genes",
+      "Mesenchymal transcription factor driving epithelial-mesenchymal transition (EMT) transcriptional signatures",
+      "Promotes myeloid differentiation while suppressing T-cell differentiation in CD34+ hematopoietic progenitors",
+      "Transcriptional activator of EZH2, mediating epigenetic silencing of DKK3 via H3K27me3",
+      "Upregulates antioxidant proteins FDX1 and HO-1, reducing labile iron pool and ROS",
+      "Activates viral chromatin by acetylation to promote alphaherpesvirus (HSV-1) lytic replication and reactivation from latency",
+      "Lung endothelial-specific transcription factor binding the S1PR1 promoter; regulates lung vasculature and development"
+    ],
+    "pathways": [
+      "NON-CANONICAL: Cellular senescence / SASP",
+      "NON-CANONICAL: Epithelial-mesenchymal transition (EMT)",
+      "NON-CANONICAL: Ferroptosis",
+      "NON-CANONICAL: Blood-brain barrier development",
+      "NON-CANONICAL: Wnt signaling",
+      "NON-CANONICAL: JAK/STAT signaling",
+      "NON-CANONICAL: RAS signaling",
+      "NON-CANONICAL: Sonic hedgehog (SHH) signaling",
+      "Generic Transcription Pathway",
+      "RNA Polymerase II Transcription",
+      "Formation of lateral plate mesoderm",
+      "Regulation of CDH11 gene transcription"
+    ],
+    "interactors": [
+      "FOXF2",
+      "EP300",
+      "CREBBP",
+      "JUN",
+      "FENDRR",
+      "BCL11B",
+      "FOXC2",
+      "EZH2",
+      "DKK3",
+      "FDX1",
+      "HMOX1",
+      "SHH",
+      "S1PR1",
+      "CTNNB1",
+      "CDH11"
+    ],
+    "disease_associations": [
+      {
+        "disease": "B-cell acute lymphoblastic leukemia (FOXF1/FENDRR subtype)",
+        "role": "oncogene",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "T-cell acute lymphoblastic leukemia / mixed phenotype acute leukemia",
+        "role": "oncogene",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Osteosarcoma (canine and human)",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Pulmonary fibrosis \u2014 context-dependent: tumor_suppressor in fibrotic mesenchyme; role may vary by cell type",
+        "role": "tumor_suppressor",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Chronic kidney disease / renal fibrosis",
+        "role": "therapeutic_target",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Asthma (airway inflammation and remodeling)",
+        "role": "biomarker",
+        "evidence_strength": "weak"
+      },
+      {
+        "disease": "Mycoplasma pneumonia (sheep)",
+        "role": "therapeutic_target",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Herpes simplex virus infection / latency",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Alveolar capillary dysplasia with misalignment of pulmonary veins",
+        "role": "biomarker",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Congenital alveolar capillary dysplasia",
+        "role": "biomarker",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Benign prostatic hyperplasia",
+        "role": "unknown",
+        "evidence_strength": "weak"
+      },
+      {
+        "disease": "Anorectal malformation",
+        "role": "unknown",
+        "evidence_strength": "weak"
+      },
+      {
+        "disease": "Disease-associated variants (FOXF1 disease variant)",
+        "role": "unknown",
+        "evidence_strength": "weak"
+      }
+    ],
+    "cellular_states": [
+      "Senescent cells (pro-inflammatory SASP)",
+      "Lung endothelial cells / brain microvascular endothelial cells (BBB)",
+      "Pulmonary fibroblasts",
+      "Alveolar epithelial cells",
+      "CD34+ cord blood hematopoietic progenitors",
+      "Stromal/mesenchymal subpopulations (asthma)",
+      "Renal tubular cells",
+      "B-ALL and T-ALL leukemic blasts",
+      "Lung vasculature",
+      "Developing embryonic tissues (heart, digestive tract, pancreas, trachea, ureter)",
+      "Lateral plate mesoderm"
+    ],
+    "druggability_notes": "FOXF1-mediated enhancer remodeling proposed as a target for modulating senescent cells to promote healthy aging. FOXF1/FENDRR B-ALL subtype may benefit from early immunotherapy (blinatumomab) or targeted interventions. Identified as a potential therapeutic target in pulmonary fibrosis (iron/ROS-FOXF1 feedback loop) and renal fibrosis (FOXF1-EZH2-DKK3 axis). Acts via epigenetic cofactors p300/CBP (EP300/CREBBP) at viral and host chromatin. As a nuclear DNA-binding transcription factor, direct small-molecule binding is challenging; no specific binding pockets or drug classes described in database sources.",
+    "confidence": 0.73,
+    "source_pmids": [
+      "40442177",
+      "40508013",
+      "40509581",
+      "40592324",
+      "40692799",
+      "40808655",
+      "40877349",
+      "40885212",
+      "41101211",
+      "41331297",
+      "41581705",
+      "41595182",
+      "41629328",
+      "41676611",
+      "41743787",
+      "41790573",
+      "41894249",
+      "41938537",
+      "41997110",
+      "42070147"
+    ],
+    "source_count": 3,
+    "merged_at": "2026-06-11T15:29:14Z"
+  },
+  "BRCA1": {
+    "gene_symbol": "BRCA1",
+    "functions": [
+      "Homologous recombination-mediated DNA double-strand break repair",
+      "Cell cycle checkpoint activation (S-phase and G2/M arrest after ionizing irradiation)",
+      "E3 ubiquitin-protein ligase activity (Lys-6-linked polyubiquitin chain formation via BRCA1-BARD1 heterodimer)",
+      "Transcriptional regulation (acts as transcriptional activator; coordinates with RNA Pol II)",
+      "Maintenance of genome integrity",
+      "Regulation of centrosomal microtubule nucleation",
+      "Required for FANCD2 targeting to sites of DNA damage",
+      "Inhibits lipid synthesis by binding inactive phosphorylated ACACA and preventing its dephosphorylation"
+    ],
+    "pathways": [
+      "DNA Double-Strand Break Repair",
+      "Homologous DNA Pairing and Strand Exchange",
+      "NON-CANONICAL: HDR through Homologous Recombination (HRR) (R-HSA-5685942)",
+      "Cell Cycle Checkpoints",
+      "NON-CANONICAL: G2/M DNA damage checkpoint (R-HSA-69473)",
+      "Fanconi Anemia Pathway",
+      "NON-CANONICAL: HDR through Single Strand Annealing (SSA) (R-HSA-5685938)",
+      "NON-CANONICAL: Resolution of D-loop Structures through Holliday Junction Intermediates (R-HSA-5693568)",
+      "NON-CANONICAL: Resolution of D-loop Structures through Synthesis-Dependent Strand Annealing (SDSA) (R-HSA-5693554)",
+      "NON-CANONICAL: Presynaptic phase of homologous DNA pairing and strand exchange (R-HSA-5693616)",
+      "NON-CANONICAL: Processing of DNA double-strand break ends (R-HSA-5693607)",
+      "NON-CANONICAL: Recruitment and ATM-mediated phosphorylation of repair and signaling proteins at DNA double strand breaks (R-HSA-5693565)",
+      "NON-CANONICAL: Nonhomologous End-Joining (NHEJ) (R-HSA-5693571)",
+      "NON-CANONICAL: Regulation of TP53 Activity through Phosphorylation (R-HSA-6804756)",
+      "NON-CANONICAL: TP53 Regulates Transcription of DNA Repair Genes (R-HSA-6796648)",
+      "NON-CANONICAL: SUMOylation of DNA damage response and repair proteins (R-HSA-3108214)",
+      "NON-CANONICAL: KEAP1-NFE2L2 pathway (R-HSA-9755511)",
+      "Antigen processing: Ubiquitination & Proteasome degradation",
+      "NON-CANONICAL: Fatty acid biosynthetic process",
+      "NON-CANONICAL: Transcriptional regulation by RNA polymerase II",
+      "NON-CANONICAL: DNA damage repair pathway"
+    ],
+    "confidence": 0.868,
+    "disease_associations": [
+      {
+        "disease": "Breast cancer (including hereditary breast and ovarian cancer syndrome, HBOC)",
+        "role": "tumor_suppressor",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Ovarian cancer (high-grade serous / epithelial ovarian cancer)",
+        "role": "tumor_suppressor",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Familial breast-ovarian cancer susceptibility type 1 (BROVCA1)",
+        "role": "tumor_suppressor",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Triple-negative breast cancer",
+        "role": "biomarker",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Fanconi anemia (complementation group S)",
+        "role": "tumor_suppressor",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Prostate cancer (high-grade/aggressive)",
+        "role": "tumor_suppressor",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Pancreatic cancer (DNA damage repair-deficient)",
+        "role": "therapeutic_target",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Clear cell renal cell carcinoma (ccRCC)",
+        "role": "therapeutic_target",
+        "evidence_strength": "moderate"
+      }
+    ],
+    "cellular_states": [
+      "Early embryonic cells during maternal-to-zygotic transition (MZT) and germ layer formation",
+      "Cells undergoing DNA damage response after ionizing radiation",
+      "Cells in S-phase and G2/M cell cycle checkpoints",
+      "Centrosome (microtubule nucleation)",
+      "ccRCC cells (BRCA1/2-WT, where BRCA1 is degraded via SLFN11)",
+      "Tumor cells with biallelic inactivation (HRR-deficient)"
+    ],
+    "interactors": [
+      "RAD51",
+      "BRCA2",
+      "BARD1",
+      "PALB2",
+      "FANCD2",
+      "ACACA",
+      "RBBP8",
+      "CHEK1",
+      "TP53",
+      "PARP1",
+      "53BP1",
+      "SLFN11"
+    ],
+    "druggability_notes": "BRCA1/2-mutated tumors are sensitive to PARP inhibitors (e.g., olaparib, niraparib, fluzoparib) via synthetic lethality with HRR deficiency. BRCA1/2-WT ccRCC is resistant to PARPi monotherapy but can be sensitized via SLFN11-dependent vulnerability with alkylating agents (TMZ, streptozocin). SLFN11 drives proteasomal degradation of BRCA1 protein, inversely correlating with BRCA1 expression. PARP1-PARP2 trapping at replicative gaps is a determinant of PARPi sensitivity. BRCA1 contains a RING-domain (zinc-finger) conferring E3 ubiquitin-ligase activity; functions through the BRCA1-BARD1 heterodimer interface and PALB2/BRCA2-RAD51 machinery \u2014 both relevant to synthetic-lethal therapeutic contexts. Novel BRCA1 variants in prostate cancer cluster in DNA repair domains including the coiled-coil and RAD51-binding regions.",
+    "source_pmids": [
+      "42238800",
+      "42239136",
+      "42239567",
+      "42242176",
+      "42242799",
+      "42242864",
+      "42243365",
+      "42244520",
+      "42245717",
+      "42249558",
+      "42252839",
+      "42253309",
+      "42253854",
+      "42254240",
+      "42260628",
+      "42263938",
+      "42265275",
+      "42265755",
+      "42268243",
+      "42272637"
+    ],
+    "source_count": 3,
+    "merged_at": "2026-06-11T15:30:14Z"
+  },
+  "KRAS": {
+    "gene_symbol": "KRAS",
+    "functions": [
+      "GTPase functioning as a molecular switch in RAS signal transduction",
+      "Binds GDP/GTP and possesses intrinsic GTPase activity",
+      "Activates downstream MAPK/ERK signaling (activates MAPK1/MAPK3 leading to phosphorylation and degradation of GJA1)",
+      "Modulates PI3K-AKT signaling",
+      "Drives oncogenic proliferation when mutated",
+      "Promotes tumorigenesis and immunosuppressive tumor microenvironment when mutated",
+      "Promotes transcriptional silencing of tumor suppressor genes in colorectal cancer via ZNF304",
+      "Substrate for LZTR1-mediated ubiquitination by a BCR (BTB-CUL3-RBX1) E3 ligase complex"
+    ],
+    "pathways": [
+      "Signaling by RAS mutants",
+      "RAF/MAP kinase cascade",
+      "MAPK family signaling cascades",
+      "Signaling by Receptor Tyrosine Kinases",
+      "Regulation of RAS by GAPs",
+      "RAS processing",
+      "MAP2K and MAPK activation",
+      "RAF activation",
+      "SOS-mediated signalling",
+      "Signaling downstream of RAS mutants",
+      "Signaling by RAS GTPase mutants",
+      "RAS signaling downstream of NF1 loss-of-function variants",
+      "Insulin receptor signalling cascade",
+      "MET activates RAS signaling",
+      "NON-CANONICAL: PI3K-AKT signaling pathway",
+      "NON-CANONICAL: Integrated stress response (ISR)",
+      "NON-CANONICAL: JAK/STAT signaling pathway"
+    ],
+    "disease_associations": [
+      {
+        "disease": "Pancreatic ductal adenocarcinoma",
+        "role": "oncogene",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Non-small cell lung cancer",
+        "role": "oncogene",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Colorectal cancer",
+        "role": "oncogene",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Noonan syndrome",
+        "role": "biomarker",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Noonan syndrome 3",
+        "role": "biomarker",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Cardiofaciocutaneous syndrome",
+        "role": "biomarker",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Cardiofaciocutaneous syndrome 2",
+        "role": "biomarker",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Gastric cancer",
+        "role": "oncogene",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Acute myeloid leukemia",
+        "role": "oncogene",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Biliary tract carcinoma",
+        "role": "oncogene",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Invasive mucinous adenocarcinoma of the lung",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Cardiomyopathy",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Appendiceal mucinous adenocarcinoma",
+        "role": "oncogene",
+        "evidence_strength": "weak"
+      },
+      {
+        "disease": "Thyroid carcinoma",
+        "role": "biomarker",
+        "evidence_strength": "weak"
+      },
+      {
+        "disease": "Ectodermal dysplasia",
+        "role": "biomarker",
+        "evidence_strength": "weak"
+      },
+      {
+        "disease": "Intellectual disability",
+        "role": "biomarker",
+        "evidence_strength": "weak"
+      },
+      {
+        "disease": "Deafness",
+        "role": "biomarker",
+        "evidence_strength": "weak"
+      }
+    ],
+    "interactors": [
+      "SHP2",
+      "ATF3",
+      "ASNS",
+      "ERO1L",
+      "HRD1",
+      "HIF1A",
+      "TP53",
+      "STK11",
+      "KEAP1",
+      "MBOAT2",
+      "NFKB1",
+      "MAPK1",
+      "MAPK3",
+      "GJA1",
+      "ZNF304",
+      "LZTR1",
+      "CUL3",
+      "RBX1"
+    ],
+    "cellular_states": [
+      "KRAS-driven pancreatic cancer cells (PANC-1, BxPC-3, 2838c3)",
+      "NSCLC tumor cells",
+      "KRAS inhibitor-resistant tumor cells",
+      "Colorectal cancer (CRC) cells",
+      "Cardiac muscle cells (cardiomyocytes)",
+      "Myoblasts",
+      "Senescent cells"
+    ],
+    "druggability_notes": "Direct KRAS inhibitors (KRASi) including KRAS G12D-specific inhibitor MRTX1133; allosteric SHP2 inhibitors targeting upstream KRAS signaling; combination strategies with ERK inhibitor (Ulixertinib), PI3K inhibitor (BKM-120), and PERK inhibitor to overcome resistance. Acquired resistance to KRAS inhibitors via ATF3-ASNS asparagine metabolic reprogramming is a major therapeutic barrier. KRAS Q61, G12D and other mutational subtypes (Q61H, Q61L) have distinct clinical/treatment relevance. Protein undergoes prenylation and palmitoylation for membrane targeting; no explicit druggable pocket beyond the mutant-selective switch-II pocket described for covalent inhibitors.",
+    "confidence": 0.848,
+    "source_pmids": [
+      "42255853",
+      "42256296",
+      "42258402",
+      "42258443",
+      "42258763",
+      "42259884",
+      "42259905",
+      "42261691",
+      "42261704",
+      "42262212",
+      "42263374",
+      "42266318",
+      "42266674",
+      "42268349",
+      "42270536",
+      "42270775",
+      "42271443",
+      "42271507",
+      "42272274",
+      "42272773"
+    ],
+    "source_count": 3,
+    "merged_at": "2026-06-11T15:30:55Z"
+  }
+}

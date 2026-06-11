@@ -1,0 +1,216 @@
+{
+  "pubmed": {
+    "gene_symbol": "BRCA1",
+    "functions": [
+      "Homologous recombination-mediated DNA double-strand break repair",
+      "Cell cycle checkpoint activation",
+      "Protein ubiquitination (E3 ubiquitin ligase activity)",
+      "Transcriptional regulation",
+      "Maintenance of genome integrity",
+      "Chromatin remodeling and epigenetic regulation",
+      "Regulation of DNA replication fidelity",
+      "Maintenance of proliferative activity during early embryogenesis"
+    ],
+    "pathways": [
+      "Homologous recombination repair (HRR)",
+      "DNA Double-Strand Break Repair",
+      "Cell Cycle Checkpoints",
+      "DNA damage repair pathway"
+    ],
+    "confidence": 0.9,
+    "disease_associations": [
+      {
+        "disease": "Breast cancer (including hereditary breast and ovarian cancer syndrome, HBOC)",
+        "role": "tumor_suppressor",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Ovarian cancer (high-grade serous / epithelial ovarian cancer)",
+        "role": "tumor_suppressor",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Prostate cancer (high-grade/aggressive)",
+        "role": "tumor_suppressor",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Pancreatic cancer (DNA damage repair-deficient)",
+        "role": "therapeutic_target",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Clear cell renal cell carcinoma (ccRCC)",
+        "role": "therapeutic_target",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Triple-negative breast cancer",
+        "role": "biomarker",
+        "evidence_strength": "strong"
+      }
+    ],
+    "cellular_states": [
+      "Early embryonic cells during maternal-to-zygotic transition (MZT)",
+      "Germ layer formation and early tissue morphogenesis",
+      "ccRCC cells (BRCA1/2-WT, where BRCA1 is degraded via SLFN11)",
+      "Tumor cells with biallelic inactivation (HRR-deficient)"
+    ],
+    "interactors": [
+      "RAD51",
+      "SLFN11",
+      "BRCA2",
+      "PARP1",
+      "53BP1"
+    ],
+    "druggability_notes": "BRCA1/2-mutated tumors are sensitive to PARP inhibitors (e.g., olaparib, niraparib, fluzoparib) via synthetic lethality; BRCA1/2-WT ccRCC is resistant to PARPi monotherapy but can be sensitized via SLFN11-dependent vulnerability with alkylating agents (TMZ, streptozocin). Novel BRCA1 variants in PCa cluster in DNA repair domains including the coiled-coil and RAD51-binding regions. SLFN11 drives proteasomal degradation of BRCA1 protein, inversely correlating with BRCA1 expression. PARP1-PARP2 trapping at replicative gaps is a determinant of PARPi sensitivity.",
+    "source_pmids": [
+      "42272637",
+      "42268243",
+      "42265755",
+      "42265275",
+      "42263938",
+      "42260628",
+      "42254240",
+      "42253854",
+      "42253309",
+      "42252839",
+      "42249558",
+      "42245717",
+      "42244520",
+      "42243365",
+      "42242864",
+      "42242799",
+      "42242176",
+      "42239567",
+      "42239136",
+      "42238800"
+    ]
+  },
+  "uniprot": {
+    "gene_symbol": "BRCA1",
+    "functions": [
+      "E3 ubiquitin-protein ligase mediating 'Lys-6'-linked polyubiquitin chain formation",
+      "Central role in DNA repair and cellular responses to DNA damage",
+      "Component of BRCA1-BARD1 heterodimer coordinating DNA repair, ubiquitination and transcriptional regulation to maintain genomic stability",
+      "Regulates centrosomal microtubule nucleation",
+      "Required for S-phase and G2 cell cycle arrest after ionizing irradiation",
+      "Required for FANCD2 targeting to sites of DNA damage",
+      "Inhibits lipid synthesis by binding inactive phosphorylated ACACA and preventing its dephosphorylation",
+      "Contributes to homologous recombination repair via direct interaction with PALB2"
+    ],
+    "pathways": [
+      "DNA Double-Strand Break Repair",
+      "Homologous DNA Pairing and Strand Exchange (Homologous Recombination Repair)",
+      "Fanconi Anemia Pathway",
+      "Cell Cycle Checkpoints (G2/M DNA damage checkpoint)",
+      "Antigen processing: Ubiquitination & Proteasome degradation",
+      "Fatty acid biosynthetic process",
+      "Transcriptional regulation by RNA polymerase II"
+    ],
+    "interactors": [
+      "BARD1",
+      "FANCD2",
+      "ACACA",
+      "PALB2",
+      "BRCA2",
+      "RAD51",
+      "RBBP8",
+      "CHEK1",
+      "TP53"
+    ],
+    "cellular_states": [
+      "Cells undergoing DNA damage response after ionizing radiation",
+      "S-phase and G2/M cell cycle arrest"
+    ],
+    "disease_associations": [
+      {
+        "disease": "Breast cancer",
+        "role": "tumor_suppressor",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Fanconi anemia",
+        "role": "tumor_suppressor",
+        "evidence_strength": "moderate"
+      }
+    ],
+    "druggability_notes": "No explicit druggability or binding pocket information stated; protein contains a zinc-finger (RING) domain conferring E3 ubiquitin-protein ligase (transferase) activity and binds zinc ions. Functions via BRCA1-BARD1 heterodimer interface and direct interactions with PALB2/BRCA2-RAD51 machinery, which are relevant to synthetic-lethal (e.g., HRR-deficiency) therapeutic contexts but not described as drug targets in this text.",
+    "confidence": 0.95,
+    "source_pmids": []
+  },
+  "opentargets": {
+    "gene_symbol": "BRCA1",
+    "functions": [
+      "E3 ubiquitin-protein ligase mediating 'Lys-6'-linked polyubiquitin chain formation",
+      "Central role in DNA damage repair (cellular response to DNA damage)",
+      "Forms BRCA1-BARD1 heterodimer coordinating DNA repair, ubiquitination and transcriptional regulation for genomic stability",
+      "Regulates centrosomal microtubule nucleation",
+      "Required for S-phase and G2 cell cycle arrest after ionizing irradiation",
+      "Required for FANCD2 targeting to sites of DNA damage",
+      "Contributes to homologous recombination repair via direct interaction with PALB2 and PALB2-dependent loading of BRCA2-RAD51 machinery",
+      "Acts as a transcriptional activator"
+    ],
+    "pathways": [
+      "HDR through Homologous Recombination (HRR) (R-HSA-5685942)",
+      "HDR through Single Strand Annealing (SSA) (R-HSA-5685938)",
+      "Resolution of D-loop Structures through Holliday Junction Intermediates (R-HSA-5693568)",
+      "Resolution of D-loop Structures through Synthesis-Dependent Strand Annealing (SDSA) (R-HSA-5693554)",
+      "Homologous DNA Pairing and Strand Exchange (R-HSA-5693579)",
+      "Presynaptic phase of homologous DNA pairing and strand exchange (R-HSA-5693616)",
+      "Processing of DNA double-strand break ends (R-HSA-5693607)",
+      "Recruitment and ATM-mediated phosphorylation of repair and signaling proteins at DNA double strand breaks (R-HSA-5693565)",
+      "Nonhomologous End-Joining (NHEJ) (R-HSA-5693571)",
+      "G2/M DNA damage checkpoint (R-HSA-69473)",
+      "Regulation of TP53 Activity through Phosphorylation (R-HSA-6804756)",
+      "TP53 Regulates Transcription of DNA Repair Genes (R-HSA-6796648)",
+      "SUMOylation of DNA damage response and repair proteins (R-HSA-3108214)",
+      "KEAP1-NFE2L2 pathway (R-HSA-9755511)"
+    ],
+    "confidence": 0.97,
+    "cellular_states": [
+      "Cells responding to DNA damage / ionizing irradiation",
+      "Cells in S-phase and G2/M cell cycle checkpoints",
+      "Centrosome (microtubule nucleation)"
+    ],
+    "disease_associations": [
+      {
+        "disease": "Hereditary breast and ovarian cancer syndrome",
+        "role": "tumor_suppressor",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Breast cancer",
+        "role": "tumor_suppressor",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Ovarian cancer",
+        "role": "tumor_suppressor",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Familial breast-ovarian cancer susceptibility type 1 (BROVCA1)",
+        "role": "tumor_suppressor",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Fanconi anemia complementation group S",
+        "role": "tumor_suppressor",
+        "evidence_strength": "moderate"
+      }
+    ],
+    "interactors": [
+      "BARD1",
+      "FANCD2",
+      "PALB2",
+      "BRCA2",
+      "RAD51",
+      "RBBP8",
+      "CHEK1",
+      "ACACA"
+    ],
+    "druggability_notes": "No explicit druggability or binding-pocket information is provided in the text. BRCA1 loss-of-function induces HRR deficiency (defective HDR pathways noted), which is the mechanistic basis for synthetic-lethal PARP inhibitor sensitivity, though PARP inhibitors are not directly mentioned in this text.",
+    "source_pmids": []
+  }
+}

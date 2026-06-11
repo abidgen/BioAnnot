@@ -1,0 +1,283 @@
+{
+  "pubmed": {
+    "gene_symbol": "TP53",
+    "functions": [
+      "Tumor suppressor",
+      "Regulation of apoptosis",
+      "Cell cycle checkpoint control",
+      "Transcription factor activity",
+      "DNA damage response",
+      "Maintenance of genomic stability"
+    ],
+    "pathways": [
+      "Transcriptional Regulation by TP53",
+      "TP53 Regulates Transcription of Cell Cycle Genes",
+      "Cell Cycle Checkpoints",
+      "DNA Repair"
+    ],
+    "disease_associations": [
+      {
+        "disease": "Silent corticotroph adenoma",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Lung adenocarcinoma",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Malignant meningioma",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Oral tongue squamous cell carcinoma",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Pancreatic cancer",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Non-small cell lung cancer",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Dedifferentiated liposarcoma",
+        "role": "therapeutic_target",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Laryngeal squamous cell carcinoma",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Prostate cancer",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Luminal B-like breast cancer",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Heart failure",
+        "role": "therapeutic_target",
+        "evidence_strength": "weak"
+      }
+    ],
+    "interactors": [
+      "MDM2",
+      "AKT1",
+      "IL6",
+      "ATRX",
+      "DAXX"
+    ],
+    "druggability_notes": "The MDM2-p53 antagonist brigimadlin was tested versus doxorubicin in MDM2-amplified dedifferentiated liposarcoma (Brightline-1, NCT05218499); brigimadlin activated the TP53 pathway with a 22.3% objective response rate, though the PFS primary endpoint was not met. p53 immunohistochemistry staining patterns (null/loss, strong diffuse nuclear positivity, wild-type scattered weak) serve as a surrogate for TP53 gene mutation status to distinguish clonally independent tumors. Germline pathogenic TP53 variants are an NCCN-recognized prostate cancer risk gene.",
+    "cellular_states": [
+      "Silent corticotroph adenoma (high-CNV, aggressive)",
+      "Cardiomyocytes (doxorubicin-induced heart failure model)",
+      "LUAD epithelial cells",
+      "Malignant meningioma cells",
+      "Pancreatic tumor cells"
+    ],
+    "confidence": 0.8,
+    "source_pmids": [
+      "42273717",
+      "42271471",
+      "42270842",
+      "42270069",
+      "42269376",
+      "42268459",
+      "42268349",
+      "42268294",
+      "42266737",
+      "42265755",
+      "42264930",
+      "42263480",
+      "42262988",
+      "42262879",
+      "42261704",
+      "42260782",
+      "42260654",
+      "42260568",
+      "42260443",
+      "42260076"
+    ]
+  },
+  "uniprot": {
+    "gene_symbol": "TP53",
+    "functions": [
+      "Sequence-specific DNA-binding transcription factor that activates or represses target genes upon binding to its response element",
+      "Induces cell cycle arrest via transactivation of cyclin-dependent kinase inhibitor (e.g. CDKN1A/p21)",
+      "Induces apoptosis via stimulation of BAX and FAS expression and repression of BCL2",
+      "Promotes DNA repair in response to DNA damage",
+      "Activates oxidative stress-induced necrosis in cooperation with mitochondrial PPIF, largely transcription-independent",
+      "Induces transcription of lincRNA-p21 mediating TP53-dependent transcriptional repression and apoptosis",
+      "Prevents CDK7 kinase activity within the CAK complex to halt cell cycle progression after DNA damage",
+      "Regulates the circadian clock by repressing CLOCK-BMAL1-mediated transactivation of PER2"
+    ],
+    "pathways": [
+      "Transcriptional Regulation by TP53",
+      "TP53 Regulates Transcription of Cell Cycle Genes",
+      "TP53 Regulates Transcription of Genes Involved in Cytochrome C Release",
+      "Intrinsic Pathway for Apoptosis",
+      "DNA Damage Response",
+      "Cellular Senescence",
+      "Circadian Clock",
+      "Notch Signaling Pathway"
+    ],
+    "disease_associations": [
+      {
+        "disease": "Li-Fraumeni syndrome",
+        "role": "tumor_suppressor",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Cancer (multiple tumor types)",
+        "role": "tumor_suppressor",
+        "evidence_strength": "strong"
+      }
+    ],
+    "cellular_states": [
+      "Cells undergoing DNA damage response",
+      "Cells under oxidative/ER stress",
+      "Hematopoietic stem and progenitor cells",
+      "Senescent cells",
+      "Apoptotic thymocytes"
+    ],
+    "interactors": [
+      "PPP1R13B",
+      "TP53BP2",
+      "PPP1R13L",
+      "PPIF",
+      "BAX",
+      "FAS",
+      "BCL2",
+      "CLOCK",
+      "BMAL1",
+      "PER2",
+      "CDK7",
+      "MDM2",
+      "MDM4"
+    ],
+    "druggability_notes": "Contains a zinc ion-binding/metal-binding DNA-binding domain; 3D structures available. Activity is modulated by interaction with MDM2/MDM4 family proteins and by ASPP-family regulators (PPP1R13B/ASPP1, TP53BP2/ASPP2 activate while PPP1R13L/iASPP inhibits pro-apoptotic activity), representing potential interfaces for therapeutic modulation.",
+    "confidence": 0.95,
+    "source_pmids": []
+  },
+  "opentargets": {
+    "gene_symbol": "TP53",
+    "functions": [
+      "Sequence-specific DNA-binding transcription factor that activates target genes inducing cell cycle arrest, DNA repair or apoptosis",
+      "Tumor suppressor inducing growth arrest or apoptosis depending on physiological context and cell type",
+      "Negatively regulates cell division by controlling expression of genes required for cell division",
+      "Induces apoptosis via stimulation of BAX and FAS expression or repression of Bcl-2 expression",
+      "Activates oxidative stress-induced necrosis in cooperation with mitochondrial PPIF, largely transcription-independent",
+      "Induces transcription of long intergenic non-coding RNAs lincRNA-p21 and lincRNA-Mkln1",
+      "Prevents CDK7 kinase activity in CAK complex in response to DNA damage, halting cell cycle",
+      "Regulates circadian clock by repressing CLOCK-BMAL1-mediated transcription of PER2"
+    ],
+    "pathways": [
+      "DNA Damage/Telomere Stress Induced Senescence (R-HSA-2559586)",
+      "Regulation of TP53 Activity through Phosphorylation (R-HSA-6804756)",
+      "TP53 Regulates Transcription of DNA Repair Genes (R-HSA-6796648)",
+      "Oxidative Stress Induced Senescence (R-HSA-2559580)",
+      "TP53 Regulates Transcription of Caspase Activators and Caspases (R-HSA-6803207)",
+      "G2/M DNA damage checkpoint (R-HSA-69473)",
+      "TP53 Regulates Metabolic Genes (R-HSA-5628897)",
+      "TP53 Regulates Transcription of Death Receptors and Ligands (R-HSA-6803211)",
+      "TP53 Regulates Transcription of Genes Involved in G2 Cell Cycle Arrest (R-HSA-6804114)",
+      "Regulation of TP53 Activity through Acetylation (R-HSA-6804758)",
+      "TP53 Regulates Transcription of Genes Involved in G1 Cell Cycle Arrest (R-HSA-6804116)",
+      "Regulation of TP53 Activity through Association with Co-factors (R-HSA-6804759)",
+      "Pyroptosis (R-HSA-5620971)",
+      "Regulation of TP53 Degradation (R-HSA-6804757)",
+      "Loss of function of TP53 in cancer due to loss of tetramerization ability (R-HSA-9723905)",
+      "Activation of NOXA and translocation to mitochondria (R-HSA-111448)",
+      "TP53 Regulates Transcription of Genes Involved in Cytochrome C Release (R-HSA-6803204)",
+      "Stabilization of p53 (R-HSA-69541)",
+      "Transcriptional activation of cell cycle inhibitor p21 (R-HSA-69895)",
+      "Activation of PUMA and translocation to mitochondria (R-HSA-139915)",
+      "SUMOylation of transcription factors (R-HSA-3232118)",
+      "Regulation of PTEN gene transcription (R-HSA-8943724)",
+      "PI5P Regulates TP53 Acetylation (R-HSA-6811555)"
+    ],
+    "interactors": [
+      "BAX",
+      "FAS",
+      "BCL2",
+      "PPP1R13B",
+      "TP53BP2",
+      "PPP1R13L",
+      "PPIF",
+      "CDK7",
+      "CLOCK",
+      "BMAL1",
+      "PER2",
+      "COP1"
+    ],
+    "disease_associations": [
+      {
+        "disease": "Li-Fraumeni syndrome",
+        "role": "tumor_suppressor",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "hepatocellular carcinoma",
+        "role": "tumor_suppressor",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "head and neck squamous cell carcinoma",
+        "role": "tumor_suppressor",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "hereditary breast cancer",
+        "role": "tumor_suppressor",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "colorectal cancer",
+        "role": "tumor_suppressor",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "lung adenocarcinoma",
+        "role": "tumor_suppressor",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "esophageal cancer",
+        "role": "tumor_suppressor",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "choroid plexus papilloma",
+        "role": "tumor_suppressor",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "acute myeloid leukemia",
+        "role": "tumor_suppressor",
+        "evidence_strength": "moderate"
+      }
+    ],
+    "cellular_states": [
+      "Cells undergoing DNA damage response",
+      "Senescent cells (oxidative stress and oncogene-induced senescence)",
+      "Cells undergoing apoptosis",
+      "Cells in G1 and G2/M cell cycle arrest",
+      "Cells undergoing oxidative stress-induced necrosis"
+    ],
+    "druggability_notes": "Text describes loss of function in cancer due to loss of tetramerization ability (R-HSA-9723905), indicating relevance of the tetramerization domain. Pro-apoptotic activity is modulated by competitive interaction with ASPP family proteins (PPP1R13B/ASPP1, TP53BP2/ASPP2 activate; PPP1R13L/iASPP inhibits), suggesting a protein-protein interaction interface relevant to therapeutic modulation. No explicit druggability or small-molecule binding pocket statements provided.",
+    "confidence": 0.95,
+    "source_pmids": []
+  }
+}

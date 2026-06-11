@@ -1,0 +1,190 @@
+{
+  "pubmed": {
+    "gene_symbol": "FOXF1",
+    "functions": [
+      "Forkhead box (FOX) transcription factor that shapes chromatin accessibility and defines senescence-specific enhancer landscapes",
+      "Stimulates H3K27 acetylation and chromatin opening at de novo enhancers of pro-inflammatory SASP genes",
+      "Mesenchymal transcription factor driving epithelial-mesenchymal transition (EMT) transcriptional signatures",
+      "Promotes myeloid differentiation while suppressing T-cell differentiation in CD34+ hematopoietic progenitors",
+      "Transcriptional activator of EZH2, mediating epigenetic silencing of DKK3 via H3K27me3",
+      "Upregulates antioxidant proteins FDX1 and HO-1, reducing labile iron pool and ROS",
+      "Activates viral chromatin by acetylation to promote alphaherpesvirus (HSV-1) lytic replication and reactivation from latency",
+      "Lung endothelial-specific transcription factor binding the S1PR1 promoter to regulate its expression"
+    ],
+    "pathways": [
+      "Wnt signaling",
+      "JAK/STAT signaling",
+      "RAS signaling",
+      "Sonic hedgehog (SHH) signaling",
+      "Epithelial-mesenchymal transition (EMT)",
+      "Cellular senescence / SASP",
+      "Ferroptosis",
+      "Blood-brain barrier development"
+    ],
+    "interactors": [
+      "FOXF2",
+      "EP300",
+      "CREBBP",
+      "JUN",
+      "FENDRR",
+      "BCL11B",
+      "FOXC2",
+      "EZH2",
+      "DKK3",
+      "FDX1",
+      "HMOX1",
+      "SHH",
+      "S1PR1",
+      "CTNNB1"
+    ],
+    "disease_associations": [
+      {
+        "disease": "B-cell acute lymphoblastic leukemia (FOXF1/FENDRR subtype)",
+        "role": "oncogene",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "T-cell acute lymphoblastic leukemia / mixed phenotype acute leukemia",
+        "role": "oncogene",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Osteosarcoma (canine and human)",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Pulmonary fibrosis",
+        "role": "tumor_suppressor",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Chronic kidney disease / renal fibrosis",
+        "role": "therapeutic_target",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Asthma (airway inflammation and remodeling)",
+        "role": "biomarker",
+        "evidence_strength": "weak"
+      },
+      {
+        "disease": "Mycoplasma pneumonia (sheep)",
+        "role": "therapeutic_target",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Herpes simplex virus infection / latency",
+        "role": "biomarker",
+        "evidence_strength": "moderate"
+      }
+    ],
+    "cellular_states": [
+      "Senescent cells (pro-inflammatory SASP)",
+      "Lung endothelial cells / brain microvascular endothelial cells (BBB)",
+      "Pulmonary fibroblasts",
+      "Alveolar epithelial cells",
+      "CD34+ cord blood hematopoietic progenitors",
+      "Stromal/mesenchymal subpopulations (asthma)",
+      "Renal tubular cells",
+      "B-ALL and T-ALL leukemic blasts"
+    ],
+    "druggability_notes": "FOXF1-mediated enhancer remodeling proposed as a target for modulating senescent cells to promote healthy aging. FOXF1/FENDRR B-ALL subtype may benefit from early immunotherapy (blinatumomab) or targeted interventions. Identified as a potential therapeutic target in pulmonary fibrosis (iron/ROS-FOXF1 feedback loop), renal fibrosis (FOXF1-EZH2-DKK3 axis), and as anti-pneumonia genetic resource. Acts via epigenetic cofactors (p300/CBP) at viral and host chromatin.",
+    "confidence": 0.9,
+    "source_pmids": [
+      "42070147",
+      "41997110",
+      "41938537",
+      "41894249",
+      "41790573",
+      "41743787",
+      "41676611",
+      "41629328",
+      "41595182",
+      "41581705",
+      "41331297",
+      "41101211",
+      "40885212",
+      "40877349",
+      "40808655",
+      "40692799",
+      "40592324",
+      "40509581",
+      "40508013",
+      "40442177"
+    ]
+  },
+  "uniprot": {
+    "gene_symbol": "FOXF1",
+    "functions": [
+      "DNA-binding transcription activator (RNA polymerase II-specific)",
+      "Probable transcription activator for lung-specific genes",
+      "Sequence-specific RNA polymerase II cis-regulatory region DNA binding",
+      "Positive regulation of transcription by RNA polymerase II",
+      "Regulation of lung development and lung vasculature development",
+      "Regulation of blood vessel and venous blood vessel development",
+      "Regulation of heart development and cardiac left ventricle morphogenesis",
+      "Regulation of digestive tract, pancreas, trachea, and ureter development"
+    ],
+    "pathways": [
+      "Generic Transcription Pathway",
+      "RNA Polymerase II Transcription"
+    ],
+    "cellular_states": [
+      "Lung tissue",
+      "Lung vasculature",
+      "Developing embryonic tissues (heart, digestive tract, pancreas, trachea, ureter)"
+    ],
+    "disease_associations": [
+      {
+        "disease": "Disease-associated variants (FOXF1 disease variant)",
+        "role": "unknown",
+        "evidence_strength": "weak"
+      }
+    ],
+    "druggability_notes": "No druggability, binding pocket, or drug class information is provided in the text. As a nuclear DNA-binding transcription factor, no druggability features are described.",
+    "confidence": 0.85,
+    "source_pmids": []
+  },
+  "opentargets": {
+    "gene_symbol": "FOXF1",
+    "functions": [
+      "Probable transcription activator for a number of lung-specific genes",
+      "Sequence-specific DNA-binding transcription factor (forkhead box family)",
+      "Regulates CDH11 gene transcription",
+      "Involved in lateral plate mesoderm formation"
+    ],
+    "pathways": [
+      "Formation of lateral plate mesoderm",
+      "Regulation of CDH11 gene transcription"
+    ],
+    "cellular_states": [
+      "Lung (pulmonary tissue)",
+      "Lateral plate mesoderm"
+    ],
+    "disease_associations": [
+      {
+        "disease": "Alveolar capillary dysplasia with misalignment of pulmonary veins",
+        "role": "biomarker",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Congenital alveolar capillary dysplasia",
+        "role": "biomarker",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Benign prostatic hyperplasia",
+        "role": "unknown",
+        "evidence_strength": "weak"
+      },
+      {
+        "disease": "Anorectal malformation",
+        "role": "unknown",
+        "evidence_strength": "weak"
+      }
+    ],
+    "confidence": 0.78,
+    "source_pmids": []
+  }
+}
