@@ -23,6 +23,7 @@ from src.utils import setup_logging, load_gene_list, load_ref_set
 from src.fetchers.pubmed import search_pmids, fetch_abstracts
 from src.fetchers.uniprot import fetch_uniprot
 from src.fetchers.opentargets import fetch_opentargets
+from src.fetchers.string_db import fetch_string
 from src.extractor import (
     extract_from_text,
     extract_from_uniprot,
@@ -77,11 +78,22 @@ async def process_gene(gene: str, reactome_ref: set, session) -> dict | None:
     # 6. Merge
     merged = merge_annotations(gene, sources, reactome_ref)
 
+    # 6b. STRING PPI partners (factual, not LLM-extracted) — attach to the merged
+    # record for the network builder. Fetched independently of the confidence
+    # gate; only attached to genes that survived merging.
+    string_interactors = await fetch_string(gene)
+    merged["string_interactors"] = string_interactors
+
     # 7. Persist raw sources and append the merged record
     raw_path = Path("outputs/raw") / f"{gene}_raw.json"
     with open(raw_path, "w", encoding="utf-8") as f:
         json.dump(
-            {"pubmed": pubmed_ann, "uniprot": uniprot_ann, "opentargets": ot_ann},
+            {
+                "pubmed": pubmed_ann,
+                "uniprot": uniprot_ann,
+                "opentargets": ot_ann,
+                "string": string_interactors,
+            },
             f,
             indent=2,
         )

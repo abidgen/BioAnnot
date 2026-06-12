@@ -38,6 +38,7 @@ NON_CANONICAL_PREFIX = "NON-CANONICAL: "
 EDGE_COLORS = {
     "pathway_comembership": "green",
     "direct_interaction": "orange",
+    "string_interaction": "steelblue",
 }
 
 # Node-size range (points^2) mapped across the composite-score range.
@@ -62,10 +63,25 @@ def _composite_map(scores: pd.DataFrame) -> dict[str, float]:
     return scores["composite"].to_dict()
 
 
+def target_subgraph(G: nx.MultiDiGraph) -> nx.MultiDiGraph:
+    """Subgraph of target nodes and the edges among them.
+
+    STRING enrichment can add many satellite interactor nodes (node_type
+    "interactor"); plotting them produces an unreadable hairball, so the
+    visualizations focus on the target genes and their mutual relationships.
+    Falls back to the whole graph if no node_type is set (older pickles).
+    """
+    targets = [n for n, d in G.nodes(data=True) if d.get("node_type") == "target"]
+    if not targets:
+        return G
+    return G.subgraph(targets).copy()
+
+
 def plot_target_network(
     G: nx.MultiDiGraph, scores: pd.DataFrame, out_path: Path
 ) -> None:
     """Draw the gene graph: node color/size by composite, edges colored by type."""
+    G = target_subgraph(G)  # exclude STRING satellite nodes from the plot
     composite = _composite_map(scores)
     nodes = list(G.nodes())
     values = np.array([composite.get(n, 0.0) for n in nodes])
@@ -123,7 +139,13 @@ def plot_target_network(
         plt.Line2D([0], [0], color=color, lw=2, label=etype)
         for etype, color in EDGE_COLORS.items()
     ]
-    ax.legend(handles=legend_handles, loc="lower left", title="Edge type")
+    ax.legend(
+        handles=legend_handles,
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1),
+        borderaxespad=0,
+        title="Edge type",
+    )
 
     # Colorbar for composite score.
     sm = ScalarMappable(norm=norm, cmap=cmap)
@@ -134,7 +156,7 @@ def plot_target_network(
     ax.set_title("Target Network — node color/size by composite score")
     ax.axis("off")
     fig.tight_layout()
-    fig.savefig(out_path, dpi=150)
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -190,6 +212,7 @@ def plot_score_breakdown(scores: pd.DataFrame, out_path: Path) -> None:
 
 def plot_pathway_heatmap(G: nx.MultiDiGraph, out_path: Path) -> None:
     """Heatmap of genes × canonical pathways (1 = gene has pathway)."""
+    G = target_subgraph(G)  # satellite interactor nodes carry no pathways
     gene_pathways: dict[str, set[str]] = {}
     for gene, attrs in G.nodes(data=True):
         canonical = {

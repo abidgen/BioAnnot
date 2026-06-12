@@ -42,19 +42,32 @@ _NODE_ATTRS = (
 )
 
 
-def build_target_network(final_annotations: dict) -> nx.MultiDiGraph:
+def build_target_network(
+    final_annotations: dict, include_interactor_nodes: bool = True
+) -> nx.MultiDiGraph:
     """Build a gene graph from merged annotations.
 
-    A MultiDiGraph so pathway co-membership and direct-interaction edges can
-    coexist between the same node pair without overwriting each other's
-    attributes. The edge key is the edge type, so each pair carries at most one
-    edge of each type per direction.
+    A MultiDiGraph so pathway co-membership, direct-interaction, and STRING-PPI
+    edges can coexist between the same node pair without overwriting each
+    other's attributes. The edge key is the edge type, so each pair carries at
+    most one edge of each type per direction.
+
+    Target genes carry ``node_type="target"`` and the full annotation. STRING
+    interaction partners (``string_interactors`` on each annotation) add
+    ``string_interaction`` edges:
+      - between two target genes when STRING links them, and
+      - to "satellite" partner nodes (``node_type="interactor"``, no annotation)
+        when ``include_interactor_nodes`` is True. Satellites give otherwise
+        isolated targets connectivity and let two targets bridge through a
+        shared partner; they are excluded from prioritization scoring.
     """
     G = nx.MultiDiGraph()
+    targets = set(final_annotations)
 
     for gene, ann in final_annotations.items():
         G.add_node(
             gene,
+            node_type="target",
             functions=ann.get("functions", []),
             cellular_states=ann.get("cellular_states", []),
             pathways=ann.get("pathways", []),
@@ -62,6 +75,7 @@ def build_target_network(final_annotations: dict) -> nx.MultiDiGraph:
             druggability_notes=ann.get("druggability_notes", ""),
             confidence=ann.get("confidence", 0.0),
             source_count=ann.get("source_count", 0),
+            string_interactors=ann.get("string_interactors", []),
         )
 
     # Pathway co-membership: any two genes sharing ≥1 pathway. Symmetric, so
@@ -97,8 +111,52 @@ def build_target_network(final_annotations: dict) -> nx.MultiDiGraph:
                 source=gene,
             )
 
+    # STRING PPI: weighted by combined score (0–1000). Target↔target edges are
+    # deduped to one per unordered pair (STRING partner lists aren't guaranteed
+    # symmetric across both genes' top-N, so dedupe by the pair, not by source
+    # ordering). Target→satellite edges are added once per (target, partner).
+    seen_target_pairs: set[frozenset] = set()
+    for gene, ann in final_annotations.items():
+        for record in ann.get("string_interactors") or []:
+            partner = (record.get("partner") or "").upper()
+            score = record.get("combined_score", 0)
+            if not partner or partner == gene:
+                continue
+            if partner in targets:
+                pair = frozenset({gene, partner})
+                if pair in seen_target_pairs:
+                    continue
+                seen_target_pairs.add(pair)
+                G.add_edge(
+                    gene,
+                    partner,
+                    key="string_interaction",
+                    type="string_interaction",
+                    weight=score,
+                    combined_score=score,
+                )
+            elif include_interactor_nodes:
+                if partner not in G:
+                    G.add_node(partner, node_type="interactor")
+                if not G.has_edge(gene, partner, key="string_interaction"):
+                    G.add_edge(
+                        gene,
+                        partner,
+                        key="string_interaction",
+                        type="string_interaction",
+                        weight=score,
+                        combined_score=score,
+                    )
+
+    n_targets = sum(
+        1 for _, d in G.nodes(data=True) if d.get("node_type") == "target"
+    )
     log.info(
-        "Built network: %d nodes, %d edges", G.number_of_nodes(), G.number_of_edges()
+        "Built network: %d nodes (%d targets, %d interactor satellites), %d edges",
+        G.number_of_nodes(),
+        n_targets,
+        G.number_of_nodes() - n_targets,
+        G.number_of_edges(),
     )
     return G
 
@@ -125,6 +183,10 @@ def compute_priority_scores(G: nx.Graph, disease_filter: str) -> list[dict]:
 
     scores: list[dict] = []
     for node, attrs in G.nodes(data=True):
+        # Score target genes only; satellite interactor nodes contribute to
+        # centrality (above) but are not themselves prioritization candidates.
+        if attrs.get("node_type") != "target":
+            continue
         disease_assocs = attrs.get("disease_associations", [])
         disease_score = sum(
             strength_weight.get(d.get("evidence_strength", ""), 0.0)

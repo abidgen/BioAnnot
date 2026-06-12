@@ -24,9 +24,11 @@ inputs/target_genes.txt
 │   ├─ pubmed.py       → abstracts + PMIDs         │
 │   ├─ uniprot.py      → function, GO, locations   │
 │   ├─ opentargets.py  → pathways, disease assoc.  │
-│   └─ reactome.py     → canonical pathway names   │
+│   ├─ reactome.py     → canonical pathway names   │
+│   └─ string_db.py    → PPI partners (≥700)       │
 └──────────────────────────────────────────────────┘
         │  raw source text (per gene, per source)
+        │  [string_db output skips the LLM — see below]
         ▼
 ┌───────────────────────────────────────────────┐
 │  extractor.py   (claude-opus-4-8, tool use)   │
@@ -41,10 +43,12 @@ inputs/target_genes.txt
 └───────────────────────────────────────────────┘
         │  one merged annotation per gene
         ▼
-┌─────────────────────────────────────────────────┐
-│  network.py     (NetworkX)                      │
-│   build graph + compute priority scores         │
-└─────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│  network.py     (NetworkX)                           │
+│   build graph (pathway_comembership, direct_inter-   │
+│   action, string_interaction edges; + STRING         │
+│   satellite nodes) + compute priority scores         │
+└──────────────────────────────────────────────────────┘
         │
         ▼
    outputs/  (annotations.jsonl, final_annotations.json,
@@ -53,7 +57,10 @@ inputs/target_genes.txt
 
 The orchestrator [`pipeline.py`](pipeline.py) drives this flow with a concurrency limit of
 3 genes at a time. All intermediate results are written to disk under `outputs/` — that
-directory is the single source of truth between stages.
+directory is the single source of truth between stages. STRING is the one fetcher whose
+output is factual rather than free text, so its PPI partners **bypass the LLM extractor and
+merger** and are attached to each merged record directly, feeding `network.py` as
+`string_interaction` edges (and satellite interactor nodes).
 
 ## Quick Start
 
@@ -118,7 +125,8 @@ bio-annotation-pipeline/
 │   │   ├── pubmed.py           ← PubMed/Entrez abstract fetcher
 │   │   ├── uniprot.py          ← UniProt REST API fetcher
 │   │   ├── opentargets.py      ← OpenTargets GraphQL fetcher
-│   │   └── reactome.py         ← Reactome pathway fetcher
+│   │   ├── reactome.py         ← Reactome pathway fetcher
+│   │   └── string_db.py        ← STRING PPI interaction-partner fetcher
 │   ├── extractor.py            ← Anthropic API tool-use extraction core
 │   ├── merger.py               ← LLM-assisted multi-source merge & conflict resolution
 │   ├── network.py              ← NetworkX graph builder + target prioritization scorer
@@ -164,10 +172,16 @@ All outputs land under `outputs/` and are regenerated on each run.
   confidence.
 
 - **`outputs/target_network.gpickle`** — the NetworkX graph (a `MultiDiGraph`) pickled to
-  disk. Nodes are genes carrying the full annotation as attributes; edges are
-  `pathway_comembership` (genes sharing ≥1 pathway) and `direct_interaction` (a gene to a
-  named interactor that is also a node). Load with
-  `pickle.load(open(path, "rb"))`.
+  disk. It holds the 5 (or however many) target nodes (`node_type="target"`, carrying the
+  full annotation as attributes) plus satellite interactor nodes (`node_type="interactor"`)
+  — the STRING partners of the targets, added so otherwise-isolated genes gain connectivity.
+  Edge types are `pathway_comembership` (genes sharing ≥1 pathway), `direct_interaction`
+  (a gene to a named LLM-extracted interactor that is also a node), and `string_interaction`
+  (STRING PPI partners, weighted by `combined_score` on the 0–1000 scale — between two
+  targets, or from a target to a satellite). Centrality is computed over the whole graph but
+  only target nodes are scored and written to the TSV. Pass
+  `build_target_network(..., include_interactor_nodes=False)` for a target-only graph with
+  no satellites (cleaner for larger gene sets). Load with `pickle.load(open(path, "rb"))`.
 
 ## Quality Gates
 
@@ -220,10 +234,10 @@ This reads existing outputs only (no pipeline rerun) and writes three PNGs to
 
 ## Extension Points
 
-The following extensions are planned:
+STRING PPI enrichment (`src/fetchers/string_db.py`) is **implemented** — see the
+Architecture section and the `string_interaction` edges in
+`outputs/target_network.gpickle`. The following extensions are still planned:
 
-- **STRING PPI** — `src/fetchers/string_db.py` querying STRING for interactor gene symbols
-  with combined scores ≥ 700, to enrich the direct-interaction edges.
 - **CellxGene Census** — `src/fetchers/cellxgene.py` fetching mean expression per cell type
   for each gene (e.g. in human lung tissue) to ground the `cellular_states` field.
 - **GTEx safety filter** — `src/filters/gtex_safety.py` flagging genes with high normal

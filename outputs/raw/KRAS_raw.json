@@ -2,43 +2,43 @@
   "pubmed": {
     "gene_symbol": "KRAS",
     "functions": [
-      "Oncogenic GTPase driving proliferative signaling when mutated (e.g., Q61L, Q61H, G12C-targetable)",
-      "Activates downstream ERK1/2 (MAPK) signaling promoting cell proliferation",
-      "Drives clonal expansion of initiated stem cells in tumor initiation",
-      "Mutant KRAS reprograms ER stress pathways (downregulates HRD1, induces ERO1L via HIF1\u03b1 stabilization)",
-      "Reciprocal cross-interaction with SRSF1 splicing factor in pancreatic cancer",
-      "Promotes inflammation-driven pancreatic tumorigenesis"
+      "Oncogenic small GTPase signaling driving cell proliferation",
+      "Activation of downstream RAF-MEK-ERK (ERK1/2) signaling cascade",
+      "Drives clonal expansion of initiated stem cells upon mutational activation",
+      "Promotes inflammation-associated tumorigenesis via downregulation of HRD1 E3 ubiquitin ligase and ER stress modulation",
+      "Reciprocal cross-interaction with splicing factor SRSF1 signaling"
     ],
     "pathways": [
+      "Signaling by RAS mutants",
       "RAF/MAP kinase cascade",
-      "Signaling by KRAS mutants",
       "Signaling downstream of RAS mutants",
-      "JAK/STAT signaling",
-      "Integrated stress response (ISR) / PERK signaling (resistance context)"
+      "Integrated stress response (ISR)",
+      "JAK/STAT signaling"
     ],
+    "confidence": 0.9,
     "disease_associations": [
       {
+        "disease": "Pancreatic ductal adenocarcinoma (PDAC)",
+        "role": "oncogene",
+        "evidence_strength": "strong"
+      },
+      {
         "disease": "Colorectal cancer",
-        "role": "oncogene",
-        "evidence_strength": "strong"
-      },
-      {
-        "disease": "Pancreatic ductal adenocarcinoma",
-        "role": "oncogene",
-        "evidence_strength": "strong"
-      },
-      {
-        "disease": "Non-small cell lung cancer",
         "role": "therapeutic_target",
         "evidence_strength": "strong"
       },
       {
-        "disease": "Invasive mucinous adenocarcinoma of lung",
+        "disease": "Non-small cell lung cancer (NSCLC)",
+        "role": "oncogene",
+        "evidence_strength": "strong"
+      },
+      {
+        "disease": "Lung invasive mucinous adenocarcinoma",
         "role": "biomarker",
         "evidence_strength": "moderate"
       },
       {
-        "disease": "Cutaneous (skin) squamous tumors / chemically induced skin carcinoma",
+        "disease": "Chemically induced skin tumors",
         "role": "oncogene",
         "evidence_strength": "moderate"
       },
@@ -48,20 +48,19 @@
         "evidence_strength": "weak"
       }
     ],
+    "druggability_notes": "KRAS is targeted by covalent inhibitor ARS-1620 (a KRAS G12C-class covalent inhibitor profiled in H358 cells, with ALDH1A3 identified as an off-target via C314 modification). KRAS-targeting peptides were identified by structure-based virtual screening (Peptide-1) showing binding via hydrogen bonding/hydrophobic interactions and antiproliferative activity in CRC. KRAS inhibitor (KRASi) acquired resistance is mediated by ATF3-ASNS asparagine metabolic reprogramming; PERK inhibition synergizes with KRASi. KRAS Q61 mutations (Q61H, Q61L) and G12C represent distinct druggable subgroups.",
     "interactors": [
       "SRSF1",
       "HRD1",
-      "ERO1L",
-      "HIF1A"
+      "ATF3",
+      "ASNS"
     ],
     "cellular_states": [
-      "Upper hair follicle stem cells",
-      "Pancreatic ductal epithelial cells (KPC model)",
-      "Colorectal cancer cells (SW480, H358-related lineages)",
-      "Lung adenocarcinoma cells"
+      "Upper hair follicle stem cells (skin tumor cell of origin)",
+      "Pancreatic ductal epithelial cells under pancreatitis/inflammation",
+      "Colorectal carcinoma cells (SW480, BxPC-3 models)",
+      "Lung adenocarcinoma cells (H358)"
     ],
-    "druggability_notes": "Targetable by covalent inhibitor ARS-1620 (binds mutant KRAS; off-target ALDH1A3 via C314); KRAS Q61 mutations (Q61H, Q61L) define distinct NSCLC subgroups; structure-based KRAS-targeting peptides (Peptide-1) under investigation for colorectal cancer; acquired KRAS inhibitor (KRASi) resistance via ATF3-ASNS asparagine reprogramming, reversible by PERK inhibition.",
-    "confidence": 0.85,
     "source_pmids": [
       "42275467",
       "42275002",
@@ -91,25 +90,20 @@
       "Signal transducer in the Ras-MAPK signaling pathway regulating cell proliferation and survival",
       "Binds GDP/GTP and possesses intrinsic GTPase activity",
       "Activates MAPK1/MAPK3 leading to phosphorylation and degradation of GJA1",
-      "Induces transcriptional silencing of tumor suppressor genes in a ZNF304-dependent manner",
-      "Promotes oncogenic events in colorectal cancer cells",
-      "Substrate for LZTR1-mediated ubiquitination via a BCR (BTB-CUL3-RBX1) E3 ligase complex",
-      "Positive regulation of cellular senescence",
-      "Cardiac and myoblast cell proliferation"
+      "Promotes oncogenic transcriptional silencing of tumor suppressor genes in colorectal cancer via ZNF304",
+      "GTP-binding and hydrolysis (G protein activity)",
+      "Protein-membrane adaptor activity at the plasma membrane",
+      "Positive regulation of Ras protein signal transduction",
+      "Positive regulation of cellular senescence"
     ],
     "pathways": [
-      "Signaling by Ras",
+      "Signaling by RAS",
       "RAF/MAP kinase cascade",
       "MAPK cascade",
       "Ras protein signal transduction",
       "Cytokine-mediated signaling pathway"
     ],
     "confidence": 0.95,
-    "cellular_states": [
-      "Colorectal cancer (CRC) cells",
-      "Cardiac muscle cells",
-      "Myoblasts"
-    ],
     "disease_associations": [
       {
         "disease": "Colorectal cancer",
@@ -122,22 +116,11 @@
         "evidence_strength": "moderate"
       },
       {
-        "disease": "Deafness",
+        "disease": "Noonan syndrome / RASopathy (intellectual disability, ectodermal dysplasia, deafness)",
         "role": "biomarker",
-        "evidence_strength": "weak"
-      },
-      {
-        "disease": "Ectodermal dysplasia",
-        "role": "biomarker",
-        "evidence_strength": "weak"
-      },
-      {
-        "disease": "Intellectual disability",
-        "role": "biomarker",
-        "evidence_strength": "weak"
+        "evidence_strength": "moderate"
       }
     ],
-    "druggability_notes": "KRAS is a GTP-binding hydrolase and proto-oncogene. Its GTPase activity and GDP/GTP nucleotide-binding pocket are central to function. Post-translational lipid modifications (palmitoylation, prenylation) drive membrane localization. The text does not explicitly describe small-molecule binding pockets or specific drug classes, but the nucleotide-binding site and prenylation/palmitoylation are mechanistically relevant for targeting.",
     "interactors": [
       "MAPK1",
       "MAPK3",
@@ -147,6 +130,12 @@
       "CUL3",
       "RBX1"
     ],
+    "cellular_states": [
+      "Colorectal cancer (CRC) cells",
+      "Cardiac muscle cells",
+      "Myoblasts"
+    ],
+    "druggability_notes": "Classified as a proto-oncogene and GTPase (hydrolase) with GDP/GTP and GMP nucleotide-binding sites; subject to post-translational lipid modifications (prenylation, palmitoylation) relevant for membrane targeting. Recognized by LZTR1 for ubiquitination via a BCR (BTB-CUL3-RBX1) E3 ligase complex, suggesting a degradation/targeted-protein-degradation angle. 3D-structure availability noted. No specific small-molecule inhibitor or binding pocket (e.g., G12C) explicitly mentioned in the provided text.",
     "source_pmids": []
   },
   "opentargets": {
@@ -154,10 +143,9 @@
     "functions": [
       "Binds GDP/GTP and possesses intrinsic GTPase activity",
       "Regulates cell proliferation",
-      "Activates MAPK1/MAPK3 leading to phosphorylation and degradation of GJA1",
-      "Promotes oncogenic transcriptional silencing of tumor suppressor genes in colorectal cancer via ZNF304",
-      "Functions as a molecular switch in receptor tyrosine kinase signal transduction",
-      "Activates the RAF/MAP kinase cascade"
+      "Activates MAPK1/MAPK3, leading to phosphorylation and degradation of GJA1",
+      "Promotes oncogenic events by inducing transcriptional silencing of tumor suppressor genes in a ZNF304-dependent manner",
+      "Functions as a molecular switch in RAF/MAP kinase signal transduction"
     ],
     "pathways": [
       "Signalling to RAS (R-HSA-167044)",
@@ -166,8 +154,8 @@
       "Signaling by RAS GTPase mutants (R-HSA-9753512)",
       "Regulation of RAS by GAPs (R-HSA-5658442)",
       "RAS signaling downstream of NF1 loss-of-function variants (R-HSA-6802953)",
-      "SOS-mediated signalling (R-HSA-112412)",
       "RAS processing (R-HSA-9648002)",
+      "SOS-mediated signalling (R-HSA-112412)",
       "MAP2K and MAPK activation (R-HSA-5674135)",
       "RAF activation (R-HSA-5673000)"
     ],
@@ -201,7 +189,7 @@
       {
         "disease": "cardiofaciocutaneous syndrome",
         "role": "biomarker",
-        "evidence_strength": "moderate"
+        "evidence_strength": "strong"
       },
       {
         "disease": "gastric cancer",
@@ -220,13 +208,212 @@
       }
     ],
     "cellular_states": [
-      "Colorectal cancer cells",
-      "B cells",
-      "Myeloid cells",
-      "Proliferating cells"
+      "Colorectal cancer (CRC) cells"
     ],
-    "druggability_notes": "Established proto-oncogene and major therapeutic target in oncology; the provided text does not detail specific binding pockets or drug classes, though RAS GTPase mutant signaling (e.g., R-HSA-9753512) and RAS GAP mutant pathways indicate mutation-driven actionability.",
+    "druggability_notes": "No specific druggability, binding pocket, or drug class information mentioned in the provided text. KRAS is a well-characterized proto-oncogene/GTPase with oncogenic mutant forms (per \"Signaling by RAS GTPase mutants\" pathway references), but the text does not describe binding pockets or therapeutic agents.",
     "confidence": 0.95,
     "source_pmids": []
-  }
+  },
+  "string": [
+    {
+      "partner": "RALGDS",
+      "combined_score": 999
+    },
+    {
+      "partner": "BRAF",
+      "combined_score": 999
+    },
+    {
+      "partner": "SOS1",
+      "combined_score": 999
+    },
+    {
+      "partner": "RAF1",
+      "combined_score": 999
+    },
+    {
+      "partner": "CALML5",
+      "combined_score": 998
+    },
+    {
+      "partner": "CALML3",
+      "combined_score": 998
+    },
+    {
+      "partner": "CALM3",
+      "combined_score": 998
+    },
+    {
+      "partner": "CALML6",
+      "combined_score": 998
+    },
+    {
+      "partner": "CALML4",
+      "combined_score": 998
+    },
+    {
+      "partner": "PIK3CA",
+      "combined_score": 998
+    },
+    {
+      "partner": "RGL1",
+      "combined_score": 997
+    },
+    {
+      "partner": "EGFR",
+      "combined_score": 997
+    },
+    {
+      "partner": "ARAF",
+      "combined_score": 996
+    },
+    {
+      "partner": "NF1",
+      "combined_score": 996
+    },
+    {
+      "partner": "MAP2K1",
+      "combined_score": 995
+    },
+    {
+      "partner": "HRAS",
+      "combined_score": 992
+    },
+    {
+      "partner": "CDKN2A",
+      "combined_score": 992
+    },
+    {
+      "partner": "SRC",
+      "combined_score": 990
+    },
+    {
+      "partner": "SHOC2",
+      "combined_score": 989
+    },
+    {
+      "partner": "ALK",
+      "combined_score": 989
+    },
+    {
+      "partner": "MAPK1",
+      "combined_score": 988
+    },
+    {
+      "partner": "RASSF1",
+      "combined_score": 987
+    },
+    {
+      "partner": "SOS2",
+      "combined_score": 985
+    },
+    {
+      "partner": "MAPK3",
+      "combined_score": 982
+    },
+    {
+      "partner": "BCL2L1",
+      "combined_score": 982
+    },
+    {
+      "partner": "RASSF5",
+      "combined_score": 981
+    },
+    {
+      "partner": "FGFR1",
+      "combined_score": 981
+    },
+    {
+      "partner": "EML4",
+      "combined_score": 980
+    },
+    {
+      "partner": "MET",
+      "combined_score": 979
+    },
+    {
+      "partner": "PDGFRA",
+      "combined_score": 978
+    },
+    {
+      "partner": "KIT",
+      "combined_score": 976
+    },
+    {
+      "partner": "MAPKAP1",
+      "combined_score": 974
+    },
+    {
+      "partner": "PIK3CD",
+      "combined_score": 974
+    },
+    {
+      "partner": "FGFR2",
+      "combined_score": 973
+    },
+    {
+      "partner": "PIK3CB",
+      "combined_score": 973
+    },
+    {
+      "partner": "RASA1",
+      "combined_score": 971
+    },
+    {
+      "partner": "IFNGR1",
+      "combined_score": 971
+    },
+    {
+      "partner": "PLCE1",
+      "combined_score": 971
+    },
+    {
+      "partner": "IGF1R",
+      "combined_score": 971
+    },
+    {
+      "partner": "FGFR3",
+      "combined_score": 971
+    },
+    {
+      "partner": "RIN1",
+      "combined_score": 969
+    },
+    {
+      "partner": "PIK3CG",
+      "combined_score": 968
+    },
+    {
+      "partner": "TIAM1",
+      "combined_score": 967
+    },
+    {
+      "partner": "ERBB2",
+      "combined_score": 966
+    },
+    {
+      "partner": "MAP2K2",
+      "combined_score": 966
+    },
+    {
+      "partner": "PIK3R1",
+      "combined_score": 963
+    },
+    {
+      "partner": "GNAQ",
+      "combined_score": 960
+    },
+    {
+      "partner": "PDGFRB",
+      "combined_score": 959
+    },
+    {
+      "partner": "LGALS3",
+      "combined_score": 959
+    },
+    {
+      "partner": "RGL2",
+      "combined_score": 958
+    }
+  ]
 }
