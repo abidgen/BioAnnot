@@ -1,5 +1,8 @@
 # Biological Annotation Agentic Pipeline
 
+![Python](https://img.shields.io/badge/python-3.11-blue.svg)
+![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)
+
 ## Overview
 
 This pipeline ingests a list of gene/protein targets and produces structured JSON
@@ -101,7 +104,7 @@ Fill these into your `.env` file (never commit it — it is git-ignored):
 bio-annotation-pipeline/
 ├── README.md                   ← this file
 ├── requirements.txt
-├── .env.example
+├── env.example
 │
 ├── inputs/
 │   └── target_genes.txt        ← one gene symbol per line (e.g. FOXF1, TP53, EGFR)
@@ -254,5 +257,8 @@ The following extensions are planned:
   back from the merge model's output. This is deliberate (it prevents the model from
   inventing citations) but means the merged `source_pmids` reflect the input sources, not
   any model-level attribution.
-```
+
+## License
+
+Released under the [MIT License](LICENSE).
 
