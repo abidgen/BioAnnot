@@ -110,8 +110,14 @@ def compute_priority_scores(G: nx.Graph, disease_filter: str) -> list[dict]:
         (0.30·betweenness + 0.20·degree + 0.40·min(disease_score, 1.0)
          + 0.10·druggability_bonus) × confidence
     """
-    betweenness = nx.betweenness_centrality(G, normalized=True)
-    degree = nx.degree_centrality(G)
+    # Centrality reflects undirected connectivity: edge direction is nominal
+    # (co-membership is symmetric; interaction direction is not meaningful for
+    # reach). Project the MultiDiGraph to a simple undirected graph so paths are
+    # not constrained by stored edge direction and parallel edges don't distort
+    # degree. nx.Graph(G) collapses both direction and multiplicity.
+    UG = nx.Graph(G)
+    betweenness = nx.betweenness_centrality(UG, normalized=True)
+    degree = nx.degree_centrality(UG)
 
     # Match a disease if any oncology term (or the explicit filter) appears in it.
     match_terms = ONCOLOGY_TERMS | {disease_filter.lower()}

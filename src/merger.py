@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import random
+import re
 from datetime import datetime, timezone
 
 from src.extractor import ANNOTATION_TOOL, _get_client
@@ -25,10 +26,21 @@ NON_CANONICAL_PREFIX = "NON-CANONICAL: "
 # Number of valid Reactome names to show the model as exact-naming examples.
 PATHWAY_EXAMPLE_COUNT = 20
 
+# Reactome stable-ID suffix the merge model often appends to a pathway name,
+# e.g. "Oxidative Stress Induced Senescence (R-HSA-2559580)". The OpenTargets
+# extractor (extractor.py _format_opentargets_text) feeds names in this form, so
+# the model copies it. The canonical reference stores bare names, so we strip
+# the suffix before comparing.
+_RHSA_SUFFIX = re.compile(r"\s*\(R-HSA-\d+\)\s*$")
+
 
 def _normalize(name: str) -> str:
-    """Normalize a pathway name for canonical comparison (lowercase + trim)."""
-    return name.strip().lower()
+    """Normalize a pathway name for canonical comparison.
+
+    Lowercases, trims, and strips any trailing Reactome stable-ID suffix so a
+    name decorated with "(R-HSA-…)" still matches its bare canonical form.
+    """
+    return _RHSA_SUFFIX.sub("", name.strip()).strip().lower()
 
 
 def _utc_now_iso() -> str:
