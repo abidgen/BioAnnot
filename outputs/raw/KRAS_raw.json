@@ -2,20 +2,26 @@
   "pubmed": {
     "gene_symbol": "KRAS",
     "functions": [
-      "GTPase functioning as a molecular switch in RAS signal transduction",
-      "Activates downstream MAPK/ERK signaling",
-      "Drives oncogenic proliferation when mutated",
-      "Modulates PI3K-AKT signaling",
-      "Promotes tumorigenesis and immunosuppressive tumor microenvironment when mutated"
+      "Oncogenic GTPase driving proliferative signaling when mutated (e.g., Q61L, Q61H, G12C-targetable)",
+      "Activates downstream ERK1/2 (MAPK) signaling promoting cell proliferation",
+      "Drives clonal expansion of initiated stem cells in tumor initiation",
+      "Mutant KRAS reprograms ER stress pathways (downregulates HRD1, induces ERO1L via HIF1\u03b1 stabilization)",
+      "Reciprocal cross-interaction with SRSF1 splicing factor in pancreatic cancer",
+      "Promotes inflammation-driven pancreatic tumorigenesis"
     ],
     "pathways": [
-      "Signaling by RAS mutants",
-      "MAPK signaling pathway",
-      "PI3K-AKT signaling pathway",
-      "Integrated stress response (ISR)",
-      "JAK/STAT signaling pathway"
+      "RAF/MAP kinase cascade",
+      "Signaling by KRAS mutants",
+      "Signaling downstream of RAS mutants",
+      "JAK/STAT signaling",
+      "Integrated stress response (ISR) / PERK signaling (resistance context)"
     ],
     "disease_associations": [
+      {
+        "disease": "Colorectal cancer",
+        "role": "oncogene",
+        "evidence_strength": "strong"
+      },
       {
         "disease": "Pancreatic ductal adenocarcinoma",
         "role": "oncogene",
@@ -23,56 +29,46 @@
       },
       {
         "disease": "Non-small cell lung cancer",
-        "role": "oncogene",
+        "role": "therapeutic_target",
         "evidence_strength": "strong"
       },
       {
-        "disease": "Invasive mucinous adenocarcinoma of the lung",
+        "disease": "Invasive mucinous adenocarcinoma of lung",
         "role": "biomarker",
         "evidence_strength": "moderate"
       },
       {
-        "disease": "Colorectal carcinoma",
+        "disease": "Cutaneous (skin) squamous tumors / chemically induced skin carcinoma",
         "role": "oncogene",
         "evidence_strength": "moderate"
       },
       {
-        "disease": "Biliary tract carcinoma",
-        "role": "oncogene",
-        "evidence_strength": "moderate"
-      },
-      {
-        "disease": "Appendiceal mucinous adenocarcinoma",
-        "role": "oncogene",
-        "evidence_strength": "weak"
-      },
-      {
-        "disease": "Thyroid carcinoma",
+        "disease": "Mesonephric-like adenocarcinoma",
         "role": "biomarker",
         "evidence_strength": "weak"
       }
     ],
     "interactors": [
-      "SHP2",
-      "ATF3",
-      "ASNS",
-      "ERO1L",
+      "SRSF1",
       "HRD1",
-      "HIF1A",
-      "TP53",
-      "STK11",
-      "KEAP1",
-      "MBOAT2",
-      "NFKB1"
+      "ERO1L",
+      "HIF1A"
     ],
     "cellular_states": [
-      "KRAS-driven pancreatic cancer cells (PANC-1, BxPC-3, 2838c3)",
-      "NSCLC tumor cells",
-      "KRAS inhibitor-resistant tumor cells"
+      "Upper hair follicle stem cells",
+      "Pancreatic ductal epithelial cells (KPC model)",
+      "Colorectal cancer cells (SW480, H358-related lineages)",
+      "Lung adenocarcinoma cells"
     ],
-    "druggability_notes": "Multiple mentions of druggability: direct KRAS inhibitors (KRASi) including KRAS-specific inhibitor MRTX1133; allosteric SHP2 inhibitors targeting upstream KRAS signaling; combination strategies with ERK inhibitor (Ulixertinib), PI3K inhibitor (BKM-120), and PERK inhibitor to overcome resistance. Acquired resistance to KRAS inhibitors via ATF3-ASNS asparagine metabolic reprogramming is a major therapeutic barrier. KRAS Q61, G12D and other mutational subtypes (Q61H, Q61L) noted with distinct clinical/treatment relevance.",
-    "confidence": 0.82,
+    "druggability_notes": "Targetable by covalent inhibitor ARS-1620 (binds mutant KRAS; off-target ALDH1A3 via C314); KRAS Q61 mutations (Q61H, Q61L) define distinct NSCLC subgroups; structure-based KRAS-targeting peptides (Peptide-1) under investigation for colorectal cancer; acquired KRAS inhibitor (KRASi) resistance via ATF3-ASNS asparagine reprogramming, reversible by PERK inhibition.",
+    "confidence": 0.85,
     "source_pmids": [
+      "42275467",
+      "42275002",
+      "42275001",
+      "42274631",
+      "42274330",
+      "42274165",
       "42272773",
       "42272274",
       "42271507",
@@ -86,13 +82,7 @@
       "42262212",
       "42261704",
       "42261691",
-      "42259905",
-      "42259884",
-      "42258763",
-      "42258443",
-      "42258402",
-      "42256296",
-      "42255853"
+      "42259905"
     ]
   },
   "uniprot": {
@@ -101,17 +91,25 @@
       "Signal transducer in the Ras-MAPK signaling pathway regulating cell proliferation and survival",
       "Binds GDP/GTP and possesses intrinsic GTPase activity",
       "Activates MAPK1/MAPK3 leading to phosphorylation and degradation of GJA1",
-      "Promotes oncogenic transcriptional silencing of tumor suppressor genes in colorectal cancer via ZNF304",
-      "Acts as a molecular switch in Ras protein signal transduction",
-      "Substrate for LZTR1-mediated ubiquitination by a BCR (BTB-CUL3-RBX1) E3 ligase complex"
+      "Induces transcriptional silencing of tumor suppressor genes in a ZNF304-dependent manner",
+      "Promotes oncogenic events in colorectal cancer cells",
+      "Substrate for LZTR1-mediated ubiquitination via a BCR (BTB-CUL3-RBX1) E3 ligase complex",
+      "Positive regulation of cellular senescence",
+      "Cardiac and myoblast cell proliferation"
     ],
     "pathways": [
-      "Signaling by RAS",
+      "Signaling by Ras",
       "RAF/MAP kinase cascade",
-      "MAPK family signaling cascades",
-      "Signaling by Receptor Tyrosine Kinases"
+      "MAPK cascade",
+      "Ras protein signal transduction",
+      "Cytokine-mediated signaling pathway"
     ],
     "confidence": 0.95,
+    "cellular_states": [
+      "Colorectal cancer (CRC) cells",
+      "Cardiac muscle cells",
+      "Myoblasts"
+    ],
     "disease_associations": [
       {
         "disease": "Colorectal cancer",
@@ -124,6 +122,11 @@
         "evidence_strength": "moderate"
       },
       {
+        "disease": "Deafness",
+        "role": "biomarker",
+        "evidence_strength": "weak"
+      },
+      {
         "disease": "Ectodermal dysplasia",
         "role": "biomarker",
         "evidence_strength": "weak"
@@ -132,19 +135,9 @@
         "disease": "Intellectual disability",
         "role": "biomarker",
         "evidence_strength": "weak"
-      },
-      {
-        "disease": "Deafness",
-        "role": "biomarker",
-        "evidence_strength": "weak"
       }
     ],
-    "cellular_states": [
-      "Colorectal cancer (CRC) cells",
-      "Cardiac muscle cells (cardiomyocyte proliferation)",
-      "Myoblasts (myoblast proliferation)",
-      "Senescent cells"
-    ],
+    "druggability_notes": "KRAS is a GTP-binding hydrolase and proto-oncogene. Its GTPase activity and GDP/GTP nucleotide-binding pocket are central to function. Post-translational lipid modifications (palmitoylation, prenylation) drive membrane localization. The text does not explicitly describe small-molecule binding pockets or specific drug classes, but the nucleotide-binding site and prenylation/palmitoylation are mechanistically relevant for targeting.",
     "interactors": [
       "MAPK1",
       "MAPK3",
@@ -154,18 +147,17 @@
       "CUL3",
       "RBX1"
     ],
-    "druggability_notes": "Classified as a proto-oncogene and GTP-binding hydrolase with nucleotide-binding (GDP/GTP/GMP) sites; undergoes prenylation and palmitoylation for membrane targeting. No explicit druggable pocket or drug class is described in the provided text.",
     "source_pmids": []
   },
   "opentargets": {
     "gene_symbol": "KRAS",
     "functions": [
       "Binds GDP/GTP and possesses intrinsic GTPase activity",
-      "Regulation of cell proliferation",
-      "Activates MAPK1/MAPK3 (RAF/MAP kinase cascade)",
-      "Promotes phosphorylation and degradation of GJA1 via MAPK signaling",
-      "Induces transcriptional silencing of tumor suppressor genes in colorectal cancer in a ZNF304-dependent manner",
-      "Functions as a molecular switch in receptor tyrosine kinase signal transduction"
+      "Regulates cell proliferation",
+      "Activates MAPK1/MAPK3 leading to phosphorylation and degradation of GJA1",
+      "Promotes oncogenic transcriptional silencing of tumor suppressor genes in colorectal cancer via ZNF304",
+      "Functions as a molecular switch in receptor tyrosine kinase signal transduction",
+      "Activates the RAF/MAP kinase cascade"
     ],
     "pathways": [
       "Signalling to RAS (R-HSA-167044)",
@@ -177,9 +169,13 @@
       "SOS-mediated signalling (R-HSA-112412)",
       "RAS processing (R-HSA-9648002)",
       "MAP2K and MAPK activation (R-HSA-5674135)",
-      "RAF activation (R-HSA-5673000)",
-      "Insulin receptor signalling cascade (R-HSA-74751)",
-      "MET activates RAS signaling (R-HSA-8851805)"
+      "RAF activation (R-HSA-5673000)"
+    ],
+    "interactors": [
+      "MAPK1",
+      "MAPK3",
+      "GJA1",
+      "ZNF304"
     ],
     "disease_associations": [
       {
@@ -205,7 +201,7 @@
       {
         "disease": "cardiofaciocutaneous syndrome",
         "role": "biomarker",
-        "evidence_strength": "strong"
+        "evidence_strength": "moderate"
       },
       {
         "disease": "gastric cancer",
@@ -220,19 +216,16 @@
       {
         "disease": "colorectal cancer",
         "role": "oncogene",
-        "evidence_strength": "moderate"
+        "evidence_strength": "strong"
       }
     ],
-    "interactors": [
-      "MAPK1",
-      "MAPK3",
-      "GJA1",
-      "ZNF304"
-    ],
     "cellular_states": [
-      "colorectal cancer cells",
-      "non-small cell lung carcinoma cells"
+      "Colorectal cancer cells",
+      "B cells",
+      "Myeloid cells",
+      "Proliferating cells"
     ],
+    "druggability_notes": "Established proto-oncogene and major therapeutic target in oncology; the provided text does not detail specific binding pockets or drug classes, though RAS GTPase mutant signaling (e.g., R-HSA-9753512) and RAS GAP mutant pathways indicate mutation-driven actionability.",
     "confidence": 0.95,
     "source_pmids": []
   }

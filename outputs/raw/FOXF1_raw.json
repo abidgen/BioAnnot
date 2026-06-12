@@ -2,49 +2,58 @@
   "pubmed": {
     "gene_symbol": "FOXF1",
     "functions": [
-      "Forkhead box (FOX) transcription factor that shapes chromatin accessibility and defines senescence-specific enhancer landscapes",
+      "Forkhead box transcription factor that shapes chromatin accessibility at senescence-specific enhancers",
       "Stimulates H3K27 acetylation and chromatin opening at de novo enhancers of pro-inflammatory SASP genes",
-      "Mesenchymal transcription factor driving epithelial-mesenchymal transition (EMT) transcriptional signatures",
-      "Promotes myeloid differentiation while suppressing T-cell differentiation in CD34+ hematopoietic progenitors",
-      "Transcriptional activator of EZH2, mediating epigenetic silencing of DKK3 via H3K27me3",
-      "Upregulates antioxidant proteins FDX1 and HO-1, reducing labile iron pool and ROS",
-      "Activates viral chromatin by acetylation to promote alphaherpesvirus (HSV-1) lytic replication and reactivation from latency",
-      "Lung endothelial-specific transcription factor binding the S1PR1 promoter to regulate its expression"
+      "Coordinates the pro-inflammatory SASP program",
+      "Mesenchymal transcription factor driving epithelial-mesenchymal transition signatures",
+      "Promotes myeloid differentiation while suppressing T-cell differentiation in CD34+ progenitor cells",
+      "Lung endothelial-specific transcription factor regulating S1PR1 expression, angiogenesis and vascular development",
+      "Transcriptional activator of EZH2 mediating epigenetic silencing of DKK3 via H3K27me3",
+      "Upregulates antioxidant proteins FDX1 and HO-1 to reduce labile iron pool and ROS"
     ],
     "pathways": [
-      "Wnt signaling",
+      "Wnt signaling pathway",
       "JAK/STAT signaling",
       "RAS signaling",
-      "Sonic hedgehog (SHH) signaling",
-      "Epithelial-mesenchymal transition (EMT)",
-      "Cellular senescence / SASP",
-      "Ferroptosis",
-      "Blood-brain barrier development"
+      "Sonic hedgehog signaling",
+      "Epithelial-to-mesenchymal transition",
+      "Cellular senescence (SASP)"
     ],
+    "confidence": 0.85,
     "interactors": [
       "FOXF2",
       "EP300",
       "CREBBP",
       "JUN",
       "FENDRR",
-      "BCL11B",
       "FOXC2",
+      "BCL11B",
       "EZH2",
       "DKK3",
       "FDX1",
       "HMOX1",
-      "SHH",
-      "S1PR1",
-      "CTNNB1"
+      "CDH5",
+      "S1PR1"
+    ],
+    "cellular_states": [
+      "Senescent cells",
+      "Brain microvascular endothelial cells (blood-brain barrier)",
+      "Lung endothelial cells",
+      "Pulmonary fibroblasts",
+      "Palatal/lingual mesenchymal cells",
+      "CD34+ cord blood hematopoietic progenitors",
+      "Renal tubular cells",
+      "Alveolar epithelial cells",
+      "Mesenchymal/stromal cells (asthmatic airway)"
     ],
     "disease_associations": [
       {
-        "disease": "B-cell acute lymphoblastic leukemia (FOXF1/FENDRR subtype)",
+        "disease": "B-cell acute lymphoblastic leukemia (FOXF1/FENDRR subtype with IGH::FENDRR rearrangement)",
         "role": "oncogene",
         "evidence_strength": "strong"
       },
       {
-        "disease": "T-cell acute lymphoblastic leukemia / mixed phenotype acute leukemia",
+        "disease": "T-cell acute lymphoblastic leukemia / mixed phenotype acute leukemia (t(14;16) BCL11B enhancer hijacking)",
         "role": "oncogene",
         "evidence_strength": "strong"
       },
@@ -64,6 +73,11 @@
         "evidence_strength": "moderate"
       },
       {
+        "disease": "Cellular senescence / age-related chronic disease",
+        "role": "therapeutic_target",
+        "evidence_strength": "strong"
+      },
+      {
         "disease": "Asthma (airway inflammation and remodeling)",
         "role": "biomarker",
         "evidence_strength": "weak"
@@ -74,23 +88,12 @@
         "evidence_strength": "moderate"
       },
       {
-        "disease": "Herpes simplex virus infection / latency",
-        "role": "biomarker",
+        "disease": "Herpes simplex virus infection (HSV-1 reactivation)",
+        "role": "unknown",
         "evidence_strength": "moderate"
       }
     ],
-    "cellular_states": [
-      "Senescent cells (pro-inflammatory SASP)",
-      "Lung endothelial cells / brain microvascular endothelial cells (BBB)",
-      "Pulmonary fibroblasts",
-      "Alveolar epithelial cells",
-      "CD34+ cord blood hematopoietic progenitors",
-      "Stromal/mesenchymal subpopulations (asthma)",
-      "Renal tubular cells",
-      "B-ALL and T-ALL leukemic blasts"
-    ],
-    "druggability_notes": "FOXF1-mediated enhancer remodeling proposed as a target for modulating senescent cells to promote healthy aging. FOXF1/FENDRR B-ALL subtype may benefit from early immunotherapy (blinatumomab) or targeted interventions. Identified as a potential therapeutic target in pulmonary fibrosis (iron/ROS-FOXF1 feedback loop), renal fibrosis (FOXF1-EZH2-DKK3 axis), and as anti-pneumonia genetic resource. Acts via epigenetic cofactors (p300/CBP) at viral and host chromatin.",
-    "confidence": 0.9,
+    "druggability_notes": "FOXF1-mediated enhancer remodeling is proposed as a key target for modulating senescent cells to promote healthy aging. FOXF1 is highlighted as a potential therapeutic target in renal fibrosis (FOXF1-EZH2-DKK3 axis), pulmonary fibrosis (iron/ROS-FOXF1 feedback loop), and as a subtype-defining marker in B-ALL/T-ALL where early immunotherapy (blinatumomab) or targeted interventions may benefit patients. Identified as a potential biomarker/therapeutic target in osteosarcoma. No specific binding pocket or small-molecule drug class described.",
     "source_pmids": [
       "42070147",
       "41997110",
@@ -119,48 +122,43 @@
     "functions": [
       "DNA-binding transcription activator (RNA polymerase II-specific)",
       "Probable transcription activator for lung-specific genes",
-      "Sequence-specific RNA polymerase II cis-regulatory region DNA binding",
+      "Sequence-specific binding to RNA Pol II cis-regulatory regions",
       "Positive regulation of transcription by RNA polymerase II",
-      "Regulation of lung development and lung vasculature development",
-      "Regulation of blood vessel and venous blood vessel development",
-      "Regulation of heart development and cardiac left ventricle morphogenesis",
-      "Regulation of digestive tract, pancreas, trachea, and ureter development"
+      "Regulates lung development and lung vasculature development",
+      "Involved in blood vessel and venous blood vessel development",
+      "Drives heart development (cardiac left ventricle morphogenesis, endocardial cushion, ductus arteriosus closure)",
+      "Regulates digestive tract, pancreas, trachea, and ureter development"
     ],
     "pathways": [
       "Generic Transcription Pathway",
       "RNA Polymerase II Transcription"
     ],
+    "confidence": 0.85,
     "cellular_states": [
-      "Lung tissue",
-      "Lung vasculature",
-      "Developing embryonic tissues (heart, digestive tract, pancreas, trachea, ureter)"
+      "lung-specific cells",
+      "vascular/endothelial cells (lung vasculature)",
+      "cardiac cells"
     ],
     "disease_associations": [
       {
-        "disease": "Disease-associated variants (FOXF1 disease variant)",
-        "role": "unknown",
+        "disease": "Disease-associated variants (FOXF1 disease variant; e.g., alveolar capillary dysplasia with misalignment of pulmonary veins)",
+        "role": "biomarker",
         "evidence_strength": "weak"
       }
     ],
-    "druggability_notes": "No druggability, binding pocket, or drug class information is provided in the text. As a nuclear DNA-binding transcription factor, no druggability features are described.",
-    "confidence": 0.85,
     "source_pmids": []
   },
   "opentargets": {
     "gene_symbol": "FOXF1",
     "functions": [
-      "Probable transcription activator for a number of lung-specific genes",
-      "Sequence-specific DNA-binding transcription factor (forkhead box family)",
-      "Regulates CDH11 gene transcription",
-      "Involved in lateral plate mesoderm formation"
+      "Transcription activator for lung-specific genes",
+      "Forkhead box transcription factor",
+      "Regulates lateral plate mesoderm formation",
+      "Regulates CDH11 gene transcription"
     ],
     "pathways": [
       "Formation of lateral plate mesoderm",
       "Regulation of CDH11 gene transcription"
-    ],
-    "cellular_states": [
-      "Lung (pulmonary tissue)",
-      "Lateral plate mesoderm"
     ],
     "disease_associations": [
       {
@@ -184,7 +182,14 @@
         "evidence_strength": "weak"
       }
     ],
-    "confidence": 0.78,
+    "interactors": [
+      "CDH11"
+    ],
+    "cellular_states": [
+      "Lung epithelial cells",
+      "Lateral plate mesoderm"
+    ],
+    "confidence": 0.72,
     "source_pmids": []
   }
 }

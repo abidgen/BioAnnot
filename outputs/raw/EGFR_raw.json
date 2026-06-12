@@ -2,51 +2,56 @@
   "pubmed": {
     "gene_symbol": "EGFR",
     "functions": [
-      "Receptor tyrosine kinase mediating growth factor signaling",
-      "Drives tumor cell proliferation in lung adenocarcinoma",
-      "Oncogenic driver via activating mutations (e.g., G719A) in NSCLC",
-      "Implicated in neuronal survival and metabolic adaptation signaling"
+      "Receptor tyrosine kinase activity",
+      "Phosphorylation-mediated signal transduction upon ligand binding",
+      "Promotes tumor cell proliferation, migration, and invasion",
+      "Drives pro-proliferative signaling in pancreatic cancer cells"
     ],
     "pathways": [
       "Signaling by EGFR",
-      "PI3K/AKT Signaling",
-      "EGFR/PI3K/Akt signaling pathway",
-      "PLAGL2/EGFR/HIF-1\u03b1-HIF-2\u03b1 signaling axis"
+      "Signaling by EGFR in Cancer",
+      "PI3K/AKT/mTOR signaling",
+      "Toll-like receptor-reactive oxygen species-EGFR signaling axis"
     ],
     "disease_associations": [
       {
-        "disease": "Non-small cell lung cancer (lung adenocarcinoma)",
-        "role": "oncogene",
+        "disease": "Non-small cell lung cancer (EGFR-mutant)",
+        "role": "therapeutic_target",
         "evidence_strength": "strong"
+      },
+      {
+        "disease": "Lung adenocarcinoma with uncommon EGFR G719A mutation",
+        "role": "therapeutic_target",
+        "evidence_strength": "moderate"
+      },
+      {
+        "disease": "Pancreatic cancer",
+        "role": "oncogene",
+        "evidence_strength": "moderate"
       },
       {
         "disease": "Breast cancer",
         "role": "therapeutic_target",
         "evidence_strength": "weak"
-      },
-      {
-        "disease": "Alzheimer's disease (neuronal injury)",
-        "role": "unknown",
-        "evidence_strength": "weak"
       }
     ],
     "cellular_states": [
+      "Pancreatic cancer cells",
       "Lung adenocarcinoma cells",
-      "A549 NSCLC cells",
-      "H1299 NSCLC cells",
-      "Hippocampal neurons (SK-N-SH, SH-SY5Y)"
+      "Tumor cells with EGFR activation"
     ],
+    "druggability_notes": "EGFR is an established druggable tyrosine kinase target. Inhibited by quinazolinone derivatives and EGFR-tyrosine kinase inhibitors (e.g., afatinib). Amivantamab (anti-EGFR/MET bispecific antibody) plus chemotherapy effective in EGFR-mutant NSCLC including uncommon G719A mutation. In silico molecular docking performed against EGFR (PDB 1XKK) for plant-derived compounds (aspidinol, thunbergol) with binding affinities ~-8.6 kcal/mol. Pharmacologic EGFR inhibition suppresses microbiota-induced proliferative effects.",
     "interactors": [
-      "PIK3CA",
-      "PIK3CB",
-      "ESR1",
-      "PLAGL2",
-      "HIF1A",
-      "EPAS1"
+      "VEGFR",
+      "TLR",
+      "MET"
     ],
-    "druggability_notes": "EGFR is a well-established therapeutic target. EGFR-tyrosine kinase inhibitors (afatinib) used for EGFR-mutant NSCLC; amivantamab (bispecific antibody) plus chemotherapy effective in uncommon EGFR G719A mutation. Molecular docking against EGFR PDB ID 1XKK shows phytochemical binding affinities (e.g., aspidinol -8.6 kcal/mol), indicating a druggable binding pocket for small-molecule inhibitors.",
-    "confidence": 0.7,
+    "confidence": 0.85,
     "source_pmids": [
+      "42275554",
+      "42275148",
+      "42274268",
+      "42274262",
       "42273793",
       "42273257",
       "42273144",
@@ -62,11 +67,7 @@
       "42270806",
       "42270590",
       "42269611",
-      "42269422",
-      "42269232",
-      "42268785",
-      "42268784",
-      "42268565"
+      "42269422"
     ]
   },
   "uniprot": {
@@ -75,20 +76,34 @@
       "Receptor tyrosine kinase binding EGF-family ligands (EGF, TGFA, AREG, EPGN, BTC, EREG, HBEGF)",
       "Ligand binding triggers receptor homo- and heterodimerization and autophosphorylation on cytoplasmic residues",
       "Recruits adapter protein GRB2 to activate downstream signaling cascades",
-      "Phosphorylates RGS16 to activate its GTPase activity, coupling EGFR to GPCR signaling",
+      "Directly phosphorylates RGS16, activating its GTPase activity and coupling to GPCR signaling",
       "Phosphorylates MUC1, increasing its interaction with SRC and CTNNB1/beta-catenin",
-      "Positively regulates cell migration via interaction with CCDC88A/GIV retaining EGFR at the cell membrane",
-      "Functions as host cell receptor for virus entry",
-      "Role in learning, memory, and mammalian pain signaling"
+      "Positively regulates cell migration via interaction with CCDC88A/GIV",
+      "Enhances learning and memory performance",
+      "Role in mammalian pain signaling (long-lasting hypersensitivity)"
     ],
     "pathways": [
-      "RAS-RAF-MEK-ERK cascade",
-      "PI3K-AKT signaling",
+      "RAS-RAF-MEK-ERK (MAPK) cascade",
+      "PI3 kinase-AKT signaling",
       "PLCgamma-PKC signaling",
       "STAT signaling",
       "NF-kappa-B signaling cascade",
+      "ERBB2-EGFR signaling pathway",
       "Epidermal growth factor receptor signaling pathway",
-      "ERBB2-EGFR signaling pathway"
+      "Positive regulation of canonical Wnt signaling pathway"
+    ],
+    "confidence": 0.95,
+    "disease_associations": [
+      {
+        "disease": "Cancer (proto-oncogene, disease variants)",
+        "role": "oncogene",
+        "evidence_strength": "strong"
+      }
+    ],
+    "cellular_states": [
+      "Epithelial cells",
+      "Fibroblasts",
+      "Neurons"
     ],
     "interactors": [
       "EGF",
@@ -103,50 +118,38 @@
       "MUC1",
       "SRC",
       "CTNNB1",
-      "CCDC88A"
+      "CCDC88A",
+      "ERBB2",
+      "SHC1"
     ],
-    "disease_associations": [
-      {
-        "disease": "Cancer (proto-oncogene)",
-        "role": "oncogene",
-        "evidence_strength": "strong"
-      }
-    ],
-    "cellular_states": [
-      "Epithelial cells",
-      "Fibroblasts",
-      "Neurons"
-    ],
-    "druggability_notes": "EGFR is an ATP-binding tyrosine-protein kinase (nucleotide-binding, ATP binding) with a defined kinase domain, making it a well-established druggable target. The text notes disease variants and proto-oncogene status; it is a classic therapeutic target for tyrosine kinase inhibitors, though specific drug classes are not named in the provided text.",
-    "confidence": 0.95,
+    "druggability_notes": "EGFR is an ATP-binding tyrosine-protein kinase (ATP-binding, nucleotide-binding keywords) with a well-characterized kinase domain. It is a validated proto-oncogene and therapeutic target in oncology; disease variant keyword and 3D-structure availability support druggability. ATP-binding pocket relevant for tyrosine kinase inhibitor classes.",
     "source_pmids": []
   },
   "opentargets": {
     "gene_symbol": "EGFR",
     "functions": [
-      "Receptor tyrosine kinase binding EGF-family ligands (EGF, TGFA, AREG, EPGN, BTC, EREG, HBEGF)",
+      "Receptor tyrosine kinase binding EGF-family ligands (EGF, TGFA, AREG, EPGN, BTC, EREG, HBEGF) to transduce extracellular cues into cellular responses",
       "Ligand binding triggers receptor homo- and heterodimerization and autophosphorylation of cytoplasmic residues",
-      "Recruits adapter proteins such as GRB2 to activate downstream signaling cascades",
-      "Activates RAS-RAF-MEK-ERK, PI3K-AKT, PLCgamma-PKC and STAT signaling modules",
-      "May activate NF-kappa-B signaling cascade",
+      "Recruits adapter protein GRB2 to activate downstream signaling cascades",
+      "Activates RAS-RAF-MEK-ERK, PI3K-AKT, PLCgamma-PKC and STAT signaling modules; may activate NF-kappa-B",
       "Phosphorylates RGS16 to activate its GTPase activity, coupling EGFR to GPCR signaling",
-      "Phosphorylates MUC1 and increases its interaction with SRC and CTNNB1/beta-catenin",
-      "Positively regulates cell migration via interaction with CCDC88A/GIV; acts as receptor for HCV entry in hepatocytes"
+      "Phosphorylates MUC1, increasing its interaction with SRC and CTNNB1/beta-catenin",
+      "Positively regulates cell migration via interaction with CCDC88A/GIV retaining EGFR at the cell membrane",
+      "Acts as a receptor for hepatitis C virus entry by promoting CD81-CLDN1 complex formation and membrane fusion"
     ],
     "pathways": [
       "Signaling by EGFR (R-HSA-177929)",
       "SHC1 events in EGFR signaling (R-HSA-180336)",
       "GRB2 events in EGFR signaling (R-HSA-179812)",
       "EGFR interacts with phospholipase C-gamma (R-HSA-212718)",
-      "GAB1 signalosome (R-HSA-180292)",
       "EGFR downregulation (R-HSA-182971)",
+      "GAB1 signalosome (R-HSA-180292)",
       "Constitutive Signaling by EGFRvIII (R-HSA-5637810)",
       "Constitutive Signaling by Ligand-Responsive EGFR Cancer Variants (R-HSA-1236382)",
-      "Inhibition of Signaling by Overexpressed EGFR (R-HSA-5638303)",
       "RAF/MAP kinase cascade (R-HSA-5673001)",
       "PIP3 activates AKT signaling (R-HSA-1257604)",
-      "Clathrin-mediated endocytosis (R-HSA-8856828)",
-      "Signaling by ERBB2 (R-HSA-1227986)"
+      "Signaling by ERBB2 (R-HSA-1227986)",
+      "Clathrin-mediated endocytosis (R-HSA-8856828)"
     ],
     "interactors": [
       "EGF",
@@ -173,7 +176,7 @@
       },
       {
         "disease": "lung adenocarcinoma",
-        "role": "oncogene",
+        "role": "therapeutic_target",
         "evidence_strength": "strong"
       },
       {
@@ -204,10 +207,10 @@
     ],
     "cellular_states": [
       "hepatocytes (HCV entry)",
-      "migrating cells following ligand stimulation",
-      "mammary gland myoepithelial cells"
+      "migrating cells (ligand-stimulated)",
+      "epithelial cells"
     ],
-    "druggability_notes": "EGFR is a receptor tyrosine kinase and well-established therapeutic target. Text describes a cytoplasmic kinase domain with key autophosphorylation residues and ligand-binding ectodomain. Oncogenic variants include EGFRvIII and ligand-responsive cancer variants (R-HSA-1236382, R-HSA-5637810), which are clinically targeted. Pathways for inhibition of overexpressed EGFR are noted (R-HSA-5638303), consistent with tyrosine kinase inhibitor and anti-receptor antibody drug classes.",
+    "druggability_notes": "EGFR is a well-established therapeutic target in NSCLC and other carcinomas; its cytoplasmic tyrosine kinase domain is the canonical druggable site. Oncogenic variants including EGFRvIII and ligand-responsive cancer variants drive constitutive signaling. Text does not detail specific drug classes or binding pockets, but kinase-domain autophosphorylation activity provides a clear small-molecule target rationale.",
     "confidence": 0.95,
     "source_pmids": []
   }
