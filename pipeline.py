@@ -29,6 +29,12 @@ from src.fetchers.pubmed import search_pmids, fetch_abstracts
 from src.fetchers.uniprot import fetch_uniprot
 from src.fetchers.opentargets import fetch_opentargets
 from src.fetchers.string_db import fetch_string
+from src.fetchers.cellxgene import (
+    fetch_cellxgene,
+    ENABLE_CELLXGENE,
+    CENSUS_TISSUE,
+    CENSUS_VERSION,
+)
 from src.extractor import (
     extract_from_text,
     extract_from_uniprot,
@@ -100,6 +106,27 @@ async def process_gene(gene: str, reactome_ref: set, session) -> dict | None:
             safety.get("tissue_count_above_threshold", 0),
             safety.get("high_expression_tissues", []),
             safety.get("max_tpm", 0.0),
+        )
+
+    # 6d. CellxGene Census single-cell expression — grounds cellular_states in
+    # measured per-cell-type expression for the configured tissue.
+    if ENABLE_CELLXGENE:
+        census_data = await fetch_cellxgene(gene)
+        merged["cellxgene_expression"] = {
+            "tissue": CENSUS_TISSUE,
+            "census_version": CENSUS_VERSION,
+            "top_cell_types": [
+                {"cell_type": k, "mean_expr": v}
+                for k, v in list(census_data.items())[:10]
+            ],
+            "cell_type_count": len(census_data),
+        }
+        # Union the top 5 measured cell types into cellular_states (prefixed so
+        # their provenance is distinguishable from LLM-extracted states), order-
+        # preserving and deduped.
+        top5 = [f"CellxGene: {ct}" for ct in list(census_data.keys())[:5]]
+        merged["cellular_states"] = list(
+            dict.fromkeys(merged.get("cellular_states", []) + top5)
         )
 
     # 7. Persist raw sources and append the merged record

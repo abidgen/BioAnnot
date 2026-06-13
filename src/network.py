@@ -63,6 +63,7 @@ def build_target_network(
             source_count=ann.get("source_count", 0),
             string_interactors=ann.get("string_interactors", []),
             safety_assessment=ann.get("safety_assessment", {}),
+            cellxgene_expression=ann.get("cellxgene_expression", {}),
         )
 
     # Pathway co-membership: any two genes sharing ≥1 pathway. Symmetric, so
@@ -152,8 +153,14 @@ def compute_priority_scores(G: nx.Graph, disease_filter: str) -> list[dict]:
     """Score and rank nodes for target prioritization.
 
     Composite =
-        (0.30·betweenness + 0.20·degree + 0.40·min(disease_score, 1.0)
-         + 0.10·druggability_bonus) × confidence
+        (0.25·betweenness + 0.15·degree + 0.35·min(disease_score, 1.0)
+         + 0.10·druggability_bonus + 0.15·cellxgene_score)
+        × confidence × safety_penalty
+
+    ``safety_penalty`` is SAFETY_PENALTY (0.75) for GTEx-flagged targets, else
+    1.0. ``cellxgene_score`` rewards targets with measured single-cell expression
+    (1.0 for ≥3 cell types, 0.5 for ≥1, 0.0 otherwise). disease_score is capped
+    at 1.0 in the composite (the raw, uncapped value is still reported).
     """
     # Centrality reflects undirected connectivity: edge direction is nominal
     # (co-membership is symmetric; interaction direction is not meaningful for
@@ -185,21 +192,28 @@ def compute_priority_scores(G: nx.Graph, disease_filter: str) -> list[dict]:
         druggability_bonus = 0.2 if attrs.get("druggability_notes") else 0.0
         confidence = attrs.get("confidence", 0.0)
 
-        composite = (
-            0.30 * betweenness[node]
-            + 0.20 * degree[node]
-            + 0.40 * min(disease_score, 1.0)
-            + 0.10 * druggability_bonus
-        ) * confidence
+        # CellxGene single-cell expression breadth: reward targets grounded in
+        # measured per-cell-type expression. cell_type_count is the number of
+        # cell types (after the min-cells filter) the fetcher returned.
+        cellxgene = attrs.get("cellxgene_expression") or {}
+        cell_type_count = cellxgene.get("cell_type_count", 0)
+        cellxgene_score = (
+            1.0 if cell_type_count >= 3 else 0.5 if cell_type_count >= 1 else 0.0
+        )
 
         # GTEx safety penalty: deprioritize (don't eliminate) targets with high
         # normal-tissue expression by scaling the composite by 0.75.
         safety = attrs.get("safety_assessment") or {}
         safety_flag = bool(safety.get("safety_flag", False))
-        safety_penalty_applied = False
-        if safety_flag:
-            composite *= SAFETY_PENALTY
-            safety_penalty_applied = True
+        safety_penalty = SAFETY_PENALTY if safety_flag else 1.0
+
+        composite = (
+            0.25 * betweenness[node]
+            + 0.15 * degree[node]
+            + 0.35 * min(disease_score, 1.0)
+            + 0.10 * druggability_bonus
+            + 0.15 * cellxgene_score
+        ) * confidence * safety_penalty
 
         scores.append(
             {
@@ -209,9 +223,10 @@ def compute_priority_scores(G: nx.Graph, disease_filter: str) -> list[dict]:
                 "degree": degree[node],
                 "disease_score": disease_score,
                 "druggability_bonus": druggability_bonus,
+                "cellxgene_score": cellxgene_score,
                 "confidence": confidence,
                 "safety_flag": safety_flag,
-                "safety_penalty_applied": safety_penalty_applied,
+                "safety_penalty_applied": safety_flag,
                 "high_expression_tissues": safety.get("high_expression_tissues", []),
                 "max_tpm": safety.get("max_tpm", 0.0),
                 "pathways": attrs.get("pathways", []),

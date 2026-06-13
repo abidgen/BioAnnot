@@ -4,10 +4,11 @@ Standalone — reads existing pipeline outputs only, no pipeline rerun:
   - outputs/target_network.gpickle   (NetworkX MultiDiGraph)
   - outputs/prioritized_targets.tsv  (composite scores + components)
 
-Generates three plots into outputs/plots/:
-  a) target_network.png   — graph, nodes by composite score, edges by type
-  b) score_breakdown.png  — per-gene confidence / disease / network / composite
-  c) pathway_heatmap.png  — genes × canonical pathways presence matrix
+Generates four plots into outputs/plots/:
+  a) target_network.png        — graph, nodes by composite score, edges by type
+  b) score_breakdown.png       — per-gene confidence / disease / network / composite
+  c) pathway_heatmap.png       — genes × canonical pathways presence matrix
+  d) cellxgene_expression.png  — top 5 CellxGene cell types per gene (if present)
 
 Run with: python visualize_network.py
 """
@@ -267,6 +268,55 @@ def plot_pathway_heatmap(G: nx.MultiDiGraph, out_path: Path) -> None:
     plt.close(fig)
 
 
+def plot_cellxgene_expression(G: nx.MultiDiGraph, out_path: Path) -> None:
+    """Top-5 CellxGene cell types per gene, one horizontal-bar subplot per gene.
+
+    Reads the ``cellxgene_expression`` node attribute (written by the pipeline);
+    only genes that carry it with a non-empty ``top_cell_types`` are plotted.
+    """
+    genes = [
+        (n, d["cellxgene_expression"])
+        for n, d in G.nodes(data=True)
+        if d.get("node_type") == "target"
+        and (d.get("cellxgene_expression") or {}).get("top_cell_types")
+    ]
+
+    if not genes:
+        # Nothing to show (CellxGene disabled or no data) — emit a placeholder.
+        fig, ax = plt.subplots(figsize=(6, 3))
+        ax.text(0.5, 0.5, "No CellxGene expression data", ha="center", va="center")
+        ax.axis("off")
+        fig.savefig(out_path, dpi=150)
+        plt.close(fig)
+        return
+
+    def _short(name: str, limit: int = 40) -> str:
+        return name if len(name) <= limit else name[: limit - 1] + "…"
+
+    n = len(genes)
+    fig, axes = plt.subplots(n, 1, figsize=(9, max(3, 2.6 * n)), squeeze=False)
+    cmap = plt.get_cmap("viridis")
+    for ax, (gene, cx) in zip(axes[:, 0], genes):
+        top = cx["top_cell_types"][:5]
+        cell_types = [t["cell_type"] for t in top]
+        means = [t["mean_expr"] for t in top]
+        # Highest-expression cell type at the top of the subplot.
+        ypos = np.arange(len(cell_types))[::-1]
+        colors = cmap(np.linspace(0.25, 0.85, len(cell_types)))
+        ax.barh(ypos, means, color=colors)
+        ax.set_yticks(ypos)
+        ax.set_yticklabels([_short(c) for c in cell_types], fontsize=8)
+        ax.set_xlabel("mean expression")
+        ax.set_title(
+            f"{gene} — top cell types ({cx.get('tissue', '')})", fontsize=10
+        )
+
+    fig.suptitle("CellxGene Census — top 5 cell types per gene")
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 def print_summary(G: nx.MultiDiGraph, scores: pd.DataFrame) -> None:
     """Print node/edge counts and the top gene by composite score."""
     edge_types = Counter(d.get("type", "unknown") for _, _, d in G.edges(data=True))
@@ -291,11 +341,13 @@ def main() -> None:
     plot_target_network(G, scores, PLOTS_DIR / "target_network.png")
     plot_score_breakdown(scores, PLOTS_DIR / "score_breakdown.png")
     plot_pathway_heatmap(G, PLOTS_DIR / "pathway_heatmap.png")
+    plot_cellxgene_expression(G, PLOTS_DIR / "cellxgene_expression.png")
 
     print(f"Saved plots to {PLOTS_DIR}/")
     print("  - target_network.png")
     print("  - score_breakdown.png")
     print("  - pathway_heatmap.png")
+    print("  - cellxgene_expression.png")
     print()
     print_summary(G, scores)
 
