@@ -9,27 +9,97 @@ Rules (per CLAUDE.md Step 5):
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 
 import anthropic
 
-from src.utils import validate_pmids
+from src.utils import (
+    CACHE_MIN_TOKENS,
+    estimate_tokens,
+    load_disease_context,
+    validate_pmids,
+)
 
 log = logging.getLogger("bio_annot.extractor")
 
-EXTRACTION_MODEL = "claude-opus-4-8"
+# Model is env-configurable; default preserves the CLAUDE.md extraction model.
+EXTRACTION_MODEL = os.getenv("EXTRACTION_MODEL", "claude-opus-4-8")
 
 MAX_INPUT_WORDS = 3000
 MAX_TOKENS = 4096
 
+# Detailed, static base prompt. Kept long and stable so that, together with the
+# tool schema, it forms a cacheable prefix above the prompt-cache minimum. Only
+# the small disease-context suffix (build_system_prompt) varies per run.
 SYSTEM_PROMPT = (
-    "You are a senior biomedical annotation scientist at NCI. Extract precise, "
-    "evidence-based annotations only from the provided text. "
-    "Use canonical gene symbols (HGNC). "
-    "Use Reactome pathway names where possible. "
-    "Set confidence < 0.5 if the text is tangentially related to the gene. "
-    "Never invent interactors or pathways not mentioned in the text."
+    "You are a senior biomedical annotation scientist at the National Cancer "
+    "Institute. Extract precise, evidence-based annotations ONLY from the "
+    "provided text. Use canonical gene symbols (HGNC). Never assert anything the "
+    "text does not support, and never speculate beyond it.\n\n"
+    "You will receive text about a single gene/protein and must populate the "
+    "annotate_target tool. Follow these field-by-field instructions exactly.\n\n"
+    "FIELDS:\n"
+    "- gene_symbol: The official HGNC symbol for the target, uppercase. Do not "
+    "substitute an alias when the canonical symbol is known.\n"
+    "- functions: Molecular and cellular functions (max 8 items). Be specific — "
+    "prefer 'sequence-specific DNA-binding transcription factor' over 'regulates "
+    "transcription'. Each item is a short phrase, not a sentence.\n"
+    "- cellular_states: Cell types, tissues, or physiological/disease states in "
+    "which the target is expressed or active. Use standard cell-type nomenclature "
+    "where possible.\n"
+    "- pathways: Signaling or metabolic pathways the target participates in. "
+    "Always use exact Reactome pathway names. Valid examples: Signaling by WNT, "
+    "RAF/MAP kinase cascade, Transcriptional Regulation by TP53. Do not invent "
+    "pathway names; if the text mentions only an informal pathway, map it to the "
+    "closest canonical Reactome name.\n"
+    "- disease_associations: Each entry has a disease name, a role (oncogene, "
+    "tumor_suppressor, biomarker, therapeutic_target, or unknown), and an "
+    "evidence_strength (strong, moderate, weak). Assign a role only when the text "
+    "supports it; otherwise use unknown.\n"
+    "- interactors: Direct protein interactors EXPLICITLY named in the text, gene "
+    "symbols only. Never invent interactors that are not named in the text.\n"
+    "- druggability_notes: Note specific binding pockets, approved drugs, clinical "
+    "trial agents, and resistance mechanisms mentioned in the text. Name the drug "
+    "or drug class where given. Leave empty if the text says nothing about "
+    "druggability.\n"
+    "- confidence: A single number from 0.0 to 1.0 reflecting how well the text "
+    "supports a high-quality annotation for THIS gene.\n\n"
+    "PMID RULES:\n"
+    "Never invent PMIDs. Only use IDs provided in the input. Source PMIDs are "
+    "attached programmatically downstream — do not emit them yourself.\n\n"
+    "CONFIDENCE RUBRIC:\n"
+    "- 0.9-1.0: Multiple strong sources, consistent findings.\n"
+    "- 0.7-0.9: Two or more sources, minor inconsistencies.\n"
+    "- 0.5-0.7: Single source, or conflicting evidence.\n"
+    "- 0.0-0.5: Weak or indirect evidence only, or text only tangentially related "
+    "to the gene.\n\n"
+    "GENERAL GUIDANCE:\n"
+    "Extract only what the text states; do not import outside knowledge about the "
+    "gene, however well known. Keep list entries concise and non-redundant, and "
+    "deduplicate near-identical items. When the text is sparse or only tangentially "
+    "about the gene, return fewer items and a lower confidence rather than padding "
+    "the record. Prefer precision over recall: a short, accurate annotation is more "
+    "useful downstream than a long, speculative one.\n\n"
+    "Use exact Reactome pathway names wherever possible. Never invent interactors "
+    "or pathways not mentioned in the text."
 )
+
+
+def build_system_prompt() -> str:
+    """System prompt with the active disease context injected.
+
+    Reads DISEASE_CONTEXT so extraction focuses on the configured disease area
+    (cancer, fibrosis, neurodegeneration, …) rather than being hardcoded.
+    """
+    context = load_disease_context()["context"]
+    return (
+        f"{SYSTEM_PROMPT} "
+        f"Focus annotations on relevance to {context}. "
+        f"Prioritize disease associations, pathways, and cellular states "
+        f"relevant to {context}."
+    )
 
 ANNOTATION_TOOL = [
     {
@@ -37,6 +107,9 @@ ANNOTATION_TOOL = [
         "description": (
             "Extract structured biological annotations for a gene/protein from text"
         ),
+        # Cache the (static) tool definition so it is not re-billed on every call.
+        # This is the last/only tool, so the breakpoint covers the whole tools block.
+        "cache_control": {"type": "ephemeral"},
         "input_schema": {
             "type": "object",
             "properties": {
@@ -99,6 +172,31 @@ ANNOTATION_TOOL = [
     }
 ]
 
+def _log_cache_prefix_size() -> None:
+    """Confirm the static system+tools prefix is large enough to cache.
+
+    The prompt cache only engages when the cached prefix clears CACHE_MIN_TOKENS,
+    so we estimate it once at import. A short prefix is logged as a WARNING (which
+    surfaces even before setup_logging configures handlers) so an undersized
+    prompt is never silently un-cached.
+    """
+    system = build_system_prompt()
+    prefix = system + json.dumps(ANNOTATION_TOOL)
+    sys_tokens = estimate_tokens(system)
+    prefix_tokens = estimate_tokens(prefix)
+    level = logging.INFO if prefix_tokens >= CACHE_MIN_TOKENS else logging.WARNING
+    log.log(
+        level,
+        "extractor system prompt ~%d tokens; system+tools cache prefix ~%d tokens "
+        "(cache min %d)",
+        sys_tokens,
+        prefix_tokens,
+        CACHE_MIN_TOKENS,
+    )
+
+
+_log_cache_prefix_size()
+
 _client: anthropic.Anthropic | None = None
 
 
@@ -135,7 +233,13 @@ def extract_from_text(gene: str, text: str, source_pmids: list[str]) -> dict:
     response = _get_client().messages.create(
         model=EXTRACTION_MODEL,
         max_tokens=MAX_TOKENS,
-        system=SYSTEM_PROMPT,
+        system=[
+            {
+                "type": "text",
+                "text": build_system_prompt(),
+                "cache_control": {"type": "ephemeral"},
+            }
+        ],
         tools=ANNOTATION_TOOL,
         tool_choice={"type": "tool", "name": "annotate_target"},
         messages=[{"role": "user", "content": user_content}],
@@ -147,6 +251,12 @@ def extract_from_text(gene: str, text: str, source_pmids: list[str]) -> dict:
         gene,
         usage.input_tokens,
         usage.output_tokens,
+    )
+    log.info(
+        "extract_from_text(%s) cache: %s read, %s created",
+        gene,
+        usage.cache_read_input_tokens,
+        usage.cache_creation_input_tokens,
     )
 
     tool_use = next(

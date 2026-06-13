@@ -8,7 +8,7 @@ import os
 import httpx
 import xmltodict
 
-from src.utils import retry, validate_pmids
+from src.utils import retry, validate_pmids, load_disease_context
 
 log = logging.getLogger("bio_annot.pubmed")
 
@@ -43,7 +43,9 @@ async def search_pmids(gene: str, max_results: int = 20) -> list[str]:
 
     Returns validated PMID strings (digits only, 7-8 chars).
     """
-    term = f"{gene}[gene] AND (cancer OR tumor OR disease)"
+    query_terms = load_disease_context()["pubmed_query_terms"]
+    or_clause = " OR ".join(query_terms)
+    term = f"{gene}[gene] AND ({or_clause})"
     params = {
         "db": "pubmed",
         "term": term,

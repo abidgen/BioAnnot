@@ -20,13 +20,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.utils import setup_logging, load_gene_list, load_ref_set
+from src.utils import (
+    setup_logging,
+    load_gene_list,
+    load_ref_set,
+    load_disease_context,
+)
 from src.fetchers.pubmed import search_pmids, fetch_abstracts
 from src.fetchers.uniprot import fetch_uniprot
 from src.fetchers.opentargets import fetch_opentargets
 from src.extractor import (
     ANNOTATION_TOOL,
-    SYSTEM_PROMPT,
+    EXTRACTION_MODEL,
+    build_system_prompt,
     _get_client,
     _truncate_words,
     _format_uniprot_text,
@@ -40,10 +46,11 @@ from src.network import (
     save_prioritized_tsv,
 )
 
-BATCH_MODEL = "claude-opus-4-8"
+# Extraction model is env-driven (EXTRACTION_MODEL) via src.extractor, so batch
+# and standard pipelines stay on the same model without a second hardcoded value.
+BATCH_MODEL = EXTRACTION_MODEL
 MAX_TOKENS = 1024
 POLL_INTERVAL_SECONDS = 60
-DISEASE_FILTER = os.getenv("DISEASE_FILTER", "cancer")
 
 log = logging.getLogger("bio_annot.batch")
 
@@ -81,12 +88,26 @@ def main() -> None:
 
     genes = load_gene_list("inputs/target_genes.txt")
     reactome_ref = load_ref_set("refs/reactome_pathways.txt")
-    log.info("Batch processing %d genes | disease_filter=%s", len(genes), DISEASE_FILTER)
+    disease_context = load_disease_context()
+    log.info("Running in disease context: %s", disease_context["context"])
+    log.info("Batch processing %d genes", len(genes))
 
     # 1. Fetch all source text synchronously.
     gene_texts = asyncio.run(fetch_all(genes))
 
     client = _get_client()
+
+    # Build the system prompt once so every request shares a byte-identical
+    # system+tools prefix. Marking it cache_control: ephemeral (the tool schema
+    # already carries one) lets the Batch API serve the expanded prompt from the
+    # prompt cache across all gene requests instead of re-billing it each time.
+    system_blocks = [
+        {
+            "type": "text",
+            "text": build_system_prompt(),
+            "cache_control": {"type": "ephemeral"},
+        }
+    ]
 
     # 2. Build batch requests.
     requests = [
@@ -97,7 +118,7 @@ def main() -> None:
                 "max_tokens": MAX_TOKENS,
                 "tools": ANNOTATION_TOOL,
                 "tool_choice": {"type": "tool", "name": "annotate_target"},
-                "system": SYSTEM_PROMPT,
+                "system": system_blocks,
                 "messages": [
                     {"role": "user", "content": f"Gene: {gene}\n\n{combined_text}"}
                 ],
@@ -151,7 +172,7 @@ def main() -> None:
     # 7. Build network and prioritize — same as pipeline.py.
     G = build_target_network(final_annotations)
     save_network(G, "outputs/target_network.gpickle")
-    scores = compute_priority_scores(G, DISEASE_FILTER)
+    scores = compute_priority_scores(G, disease_context["context"])
     save_prioritized_tsv(scores, "outputs/prioritized_targets.tsv")
     log.info("Top 5 targets: %s", [s["gene"] for s in scores[:5]])
 

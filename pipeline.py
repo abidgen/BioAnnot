@@ -19,7 +19,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.utils import setup_logging, load_gene_list, load_ref_set
+from src.utils import (
+    setup_logging,
+    load_gene_list,
+    load_ref_set,
+    load_disease_context,
+)
 from src.fetchers.pubmed import search_pmids, fetch_abstracts
 from src.fetchers.uniprot import fetch_uniprot
 from src.fetchers.opentargets import fetch_opentargets
@@ -30,6 +35,7 @@ from src.extractor import (
     extract_from_opentargets,
 )
 from src.merger import merge_annotations
+from src.filters.gtex_safety import assess_safety
 from src.network import (
     build_target_network,
     compute_priority_scores,
@@ -38,7 +44,6 @@ from src.network import (
 )
 
 CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.65"))
-DISEASE_FILTER = os.getenv("DISEASE_FILTER", "cancer")
 
 ANNOTATIONS_JSONL = Path("outputs/annotations.jsonl")
 
@@ -84,6 +89,19 @@ async def process_gene(gene: str, reactome_ref: set, session) -> dict | None:
     string_interactors = await fetch_string(gene)
     merged["string_interactors"] = string_interactors
 
+    # 6c. GTEx normal-tissue safety assessment — attach for the network scorer.
+    safety = assess_safety(gene)
+    merged["safety_assessment"] = safety
+    if safety.get("safety_flag"):
+        log.warning(
+            "Safety flag for %s: high normal expression in %d sensitive tissues %s "
+            "(max %.1f TPM)",
+            gene,
+            safety.get("tissue_count_above_threshold", 0),
+            safety.get("high_expression_tissues", []),
+            safety.get("max_tpm", 0.0),
+        )
+
     # 7. Persist raw sources and append the merged record
     raw_path = Path("outputs/raw") / f"{gene}_raw.json"
     with open(raw_path, "w", encoding="utf-8") as f:
@@ -112,7 +130,9 @@ async def main() -> None:
 
     genes = load_gene_list("inputs/target_genes.txt")
     reactome_ref = load_ref_set("refs/reactome_pathways.txt")
-    log.info("Processing %d genes | disease_filter=%s", len(genes), DISEASE_FILTER)
+    disease_context = load_disease_context()
+    log.info("Running in disease context: %s", disease_context["context"])
+    log.info("Processing %d genes", len(genes))
 
     final_annotations: dict = {}
     # Process genes with a concurrency limit of 3 (respect API rate limits).
@@ -137,7 +157,7 @@ async def main() -> None:
     # Build network and prioritize
     G = build_target_network(final_annotations)
     save_network(G, "outputs/target_network.gpickle")
-    scores = compute_priority_scores(G, DISEASE_FILTER)
+    scores = compute_priority_scores(G, disease_context["context"])
     save_prioritized_tsv(scores, "outputs/prioritized_targets.tsv")
     log.info("Top 5 targets: %s", [s["gene"] for s in scores[:5]])
 

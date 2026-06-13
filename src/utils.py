@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 import sys
 from pathlib import Path
@@ -22,6 +23,22 @@ LOG_FILE = LOG_DIR / "pipeline.log"
 _LOG_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
 
 PMID_RE = re.compile(r"^\d{7,8}$")
+
+# Anthropic activates prompt caching only when the cached prefix is at least this
+# many tokens (Opus/Sonnet). Used by the extractor/merger to sanity-check that
+# their static system+tools prefix is large enough to cache.
+CACHE_MIN_TOKENS = 1024
+
+
+def estimate_tokens(text: str) -> int:
+    """Rough token estimate (~4 chars/token), no network call.
+
+    Used at import time to confirm a cacheable prefix clears CACHE_MIN_TOKENS
+    without paying for an API count_tokens round-trip. JSON (tool schemas) tends
+    to tokenize denser than this, so the estimate is conservative (under-counts),
+    meaning a prefix that clears the threshold here clears it for real.
+    """
+    return len(text) // 4
 
 
 def setup_logging(level: str = "INFO") -> logging.Logger:
@@ -80,6 +97,59 @@ def validate_pmids(pmids: list[str]) -> list[str]:
         else:
             log.warning("Dropping invalid PMID: %r", pmid)
     return valid
+
+
+DEFAULT_DISEASE_CONTEXT = "cancer"
+DEFAULT_DISEASE_TERMS = "cancer,tumor,carcinoma,sarcoma,lymphoma,leukemia"
+
+# Appended to the disease-term-derived PubMed query as a generic catch-all so
+# the search still surfaces disease-relevant abstracts beyond the listed terms.
+_GENERIC_QUERY_TERM = "disease"
+# How many of the (broad-first) DISEASE_TERMS to fold into the PubMed query,
+# keeping the Entrez OR-clause focused rather than exhaustive.
+_PUBMED_QUERY_TERM_COUNT = 2
+
+
+def load_disease_context() -> dict:
+    """Resolve the active disease context from the environment.
+
+    Reads ``DISEASE_CONTEXT`` (a single label, e.g. "cancer") and
+    ``DISEASE_TERMS`` (a comma-separated list, e.g.
+    "cancer,tumor,carcinoma,..."), and returns:
+
+      - ``context``: the DISEASE_CONTEXT label.
+      - ``pubmed_query_terms``: a short, deduped, lowercase OR-clause for the
+        PubMed search — the context plus the first couple of (broad-first)
+        DISEASE_TERMS plus a generic "disease" catch-all. For the default
+        cancer config this is ``["cancer", "tumor", "disease"]``.
+      - ``scoring_terms``: the full DISEASE_TERMS set (plus the context),
+        lowercased, used to match disease names during prioritization scoring.
+    """
+    context = (
+        os.getenv("DISEASE_CONTEXT", DEFAULT_DISEASE_CONTEXT).strip()
+        or DEFAULT_DISEASE_CONTEXT
+    )
+    raw_terms = os.getenv("DISEASE_TERMS", DEFAULT_DISEASE_TERMS)
+    terms = [t.strip() for t in raw_terms.split(",") if t.strip()]
+    if not terms:
+        terms = [context]
+
+    scoring_terms = {context.lower()} | {t.lower() for t in terms}
+
+    # Build the focused PubMed OR-clause, deduped and order-preserving.
+    pubmed_query_terms: list[str] = []
+    seen: set[str] = set()
+    for term in [context, *terms[:_PUBMED_QUERY_TERM_COUNT], _GENERIC_QUERY_TERM]:
+        lowered = term.lower()
+        if lowered not in seen:
+            seen.add(lowered)
+            pubmed_query_terms.append(lowered)
+
+    return {
+        "context": context,
+        "pubmed_query_terms": pubmed_query_terms,
+        "scoring_terms": scoring_terms,
+    }
 
 
 def load_gene_list(path: str) -> list[str]:

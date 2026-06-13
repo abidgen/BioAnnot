@@ -9,27 +9,13 @@ import pickle
 import networkx as nx
 import pandas as pd
 
+from src.utils import load_disease_context
+
 log = logging.getLogger("bio_annot.network")
 
-# Oncology term set used to match a disease against the disease_filter.
-# A disease counts toward disease_score if any of these terms appears in it.
-ONCOLOGY_TERMS = {
-    "cancer",
-    "carcinoma",
-    "sarcoma",
-    "lymphoma",
-    "leukemia",
-    "melanoma",
-    "adenocarcinoma",
-    "glioma",
-    "myeloma",
-    "blastoma",
-    "tumor",
-    "tumour",
-    "neoplasm",
-    "malignancy",
-    "oncology",
-}
+# Multiplier applied to a flagged target's composite score (GTEx safety filter):
+# deprioritize a target with high normal-tissue expression without eliminating it.
+SAFETY_PENALTY = 0.75
 
 _NODE_ATTRS = (
     "functions",
@@ -76,6 +62,7 @@ def build_target_network(
             confidence=ann.get("confidence", 0.0),
             source_count=ann.get("source_count", 0),
             string_interactors=ann.get("string_interactors", []),
+            safety_assessment=ann.get("safety_assessment", {}),
         )
 
     # Pathway co-membership: any two genes sharing ≥1 pathway. Symmetric, so
@@ -177,8 +164,9 @@ def compute_priority_scores(G: nx.Graph, disease_filter: str) -> list[dict]:
     betweenness = nx.betweenness_centrality(UG, normalized=True)
     degree = nx.degree_centrality(UG)
 
-    # Match a disease if any oncology term (or the explicit filter) appears in it.
-    match_terms = ONCOLOGY_TERMS | {disease_filter.lower()}
+    # Match a disease if any active disease-context scoring term (or the explicit
+    # filter) appears in it. Scoring terms come from DISEASE_CONTEXT/DISEASE_TERMS.
+    match_terms = load_disease_context()["scoring_terms"] | {disease_filter.lower()}
     strength_weight = {"strong": 1.0, "moderate": 0.5, "weak": 0.2}
 
     scores: list[dict] = []
@@ -204,6 +192,15 @@ def compute_priority_scores(G: nx.Graph, disease_filter: str) -> list[dict]:
             + 0.10 * druggability_bonus
         ) * confidence
 
+        # GTEx safety penalty: deprioritize (don't eliminate) targets with high
+        # normal-tissue expression by scaling the composite by 0.75.
+        safety = attrs.get("safety_assessment") or {}
+        safety_flag = bool(safety.get("safety_flag", False))
+        safety_penalty_applied = False
+        if safety_flag:
+            composite *= SAFETY_PENALTY
+            safety_penalty_applied = True
+
         scores.append(
             {
                 "gene": node,
@@ -213,6 +210,10 @@ def compute_priority_scores(G: nx.Graph, disease_filter: str) -> list[dict]:
                 "disease_score": disease_score,
                 "druggability_bonus": druggability_bonus,
                 "confidence": confidence,
+                "safety_flag": safety_flag,
+                "safety_penalty_applied": safety_penalty_applied,
+                "high_expression_tissues": safety.get("high_expression_tissues", []),
+                "max_tpm": safety.get("max_tpm", 0.0),
                 "pathways": attrs.get("pathways", []),
                 "disease_associations": disease_assocs,
             }
