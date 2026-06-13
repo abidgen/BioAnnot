@@ -42,3 +42,4 @@ outputs/*.tsv
 outputs/*.gpickle
 outputs/raw/
 outputs/plots/
+outputs/plots/
