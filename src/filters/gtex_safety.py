@@ -12,9 +12,12 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import httpx
 import pandas as pd
+
+from src.config import config
 
 log = logging.getLogger("bio_annot.gtex_safety")
 
@@ -109,8 +112,10 @@ def _empty_assessment(gene: str) -> dict:
 
 
 def assess_safety(
-    gene: str, tpm_threshold: float = 10.0, min_tissues: int = 3
-) -> dict:
+    gene: str,
+    tpm_threshold: float = config.gtex_tpm_threshold,
+    min_tissues: int = config.gtex_min_tissues,
+) -> dict[str, Any]:
     """Assess on-target normal-tissue safety risk for a gene from GTEx.
 
     Counts sensitive tissues whose median TPM exceeds ``tpm_threshold``; if at

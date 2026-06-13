@@ -5,17 +5,20 @@ from __future__ import annotations
 import itertools
 import logging
 import pickle
+from typing import Any
 
 import networkx as nx
 import pandas as pd
 
+from src.config import config
 from src.utils import load_disease_context
 
 log = logging.getLogger("bio_annot.network")
 
 # Multiplier applied to a flagged target's composite score (GTEx safety filter):
 # deprioritize a target with high normal-tissue expression without eliminating it.
-SAFETY_PENALTY = 0.75
+# Centralized in src.config (env-configurable).
+SAFETY_PENALTY = config.safety_penalty
 
 _NODE_ATTRS = (
     "functions",
@@ -29,7 +32,7 @@ _NODE_ATTRS = (
 
 
 def build_target_network(
-    final_annotations: dict, include_interactor_nodes: bool = True
+    final_annotations: dict[str, Any], include_interactor_nodes: bool = True
 ) -> nx.MultiDiGraph:
     """Build a gene graph from merged annotations.
 
@@ -149,15 +152,18 @@ def build_target_network(
     return G
 
 
-def compute_priority_scores(G: nx.Graph, disease_filter: str) -> list[dict]:
+def compute_priority_scores(G: nx.Graph, disease_filter: str) -> list[dict[str, Any]]:
     """Score and rank nodes for target prioritization.
 
     Composite =
-        (0.25·betweenness + 0.15·degree + 0.35·min(disease_score, 1.0)
-         + 0.10·druggability_bonus + 0.15·cellxgene_score)
+        (w_betweenness·betweenness + w_degree·degree
+         + w_disease·min(disease_score, 1.0) + w_druggability·druggability_bonus
+         + w_cellxgene·cellxgene_score)
         × confidence × safety_penalty
 
-    ``safety_penalty`` is SAFETY_PENALTY (0.75) for GTEx-flagged targets, else
+    The five weights come from src.config (defaults 0.25 / 0.15 / 0.35 / 0.10 /
+    0.15, validated to sum to 1.0). ``safety_penalty`` is SAFETY_PENALTY (0.75)
+    for GTEx-flagged targets, else
     1.0. ``cellxgene_score`` rewards targets with measured single-cell expression
     (1.0 for ≥3 cell types, 0.5 for ≥1, 0.0 otherwise). disease_score is capped
     at 1.0 in the composite (the raw, uncapped value is still reported).
@@ -208,11 +214,11 @@ def compute_priority_scores(G: nx.Graph, disease_filter: str) -> list[dict]:
         safety_penalty = SAFETY_PENALTY if safety_flag else 1.0
 
         composite = (
-            0.25 * betweenness[node]
-            + 0.15 * degree[node]
-            + 0.35 * min(disease_score, 1.0)
-            + 0.10 * druggability_bonus
-            + 0.15 * cellxgene_score
+            config.weight_betweenness * betweenness[node]
+            + config.weight_degree * degree[node]
+            + config.weight_disease * min(disease_score, 1.0)
+            + config.weight_druggability * druggability_bonus
+            + config.weight_cellxgene * cellxgene_score
         ) * confidence * safety_penalty
 
         scores.append(
@@ -267,7 +273,7 @@ def _flatten(value) -> str:
     return str(value)
 
 
-def save_prioritized_tsv(scores: list[dict], path: str) -> None:
+def save_prioritized_tsv(scores: list[dict[str, Any]], path: str) -> None:
     """Write the ranked target table as TSV, flattening list/dict fields."""
     rows = []
     for s in scores:

@@ -23,8 +23,7 @@ skipped. Run standalone, or via AUTO_UPDATE_SYNONYMS after a pipeline run:
 from __future__ import annotations
 
 import json
-import os
-import re
+import sys
 from collections import Counter
 from pathlib import Path
 
@@ -34,102 +33,29 @@ load_dotenv()
 
 from rapidfuzz import fuzz, process
 
+# Make the project root importable when run as `python scripts/build_synonyms.py`
+# (the script's own dir, not the project root, is on sys.path by default).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from src.config import config
+from src.pathways import (
+    NON_CANONICAL_PREFIX,
+    _normalize,
+    extract_key_token,
+    gene_token_guard,
+)
+
 FINAL_ANNOTATIONS = Path("outputs/final_annotations.json")
 SYNONYMS_PATH = Path("refs/pathway_synonyms.json")
 REACTOME_PATH = Path("refs/reactome_pathways.txt")
 
-NON_CANONICAL_PREFIX = "NON-CANONICAL: "
+# Model used only for step 3; both thresholds are centralized in src.config.
+SYNONYM_MODEL = config.synonym_model
+FUZZY_THRESHOLD = config.fuzzy_threshold
+SYNONYM_CANDIDATES = config.synonym_candidates
 
-# Model used only for step 3; both thresholds are env-configurable.
-SYNONYM_MODEL = os.getenv("SYNONYM_MODEL", "claude-sonnet-4-6")
-FUZZY_THRESHOLD = float(os.getenv("FUZZY_THRESHOLD", "85"))
-SYNONYM_CANDIDATES = int(os.getenv("SYNONYM_CANDIDATES", "10"))
-
-# Mirror src.merger._normalize so resolution here matches the merger's matching
-# (this script avoids importing src.* so it runs standalone from scripts/).
-_RHSA_SUFFIX = re.compile(r"\s*\(R-HSA-\d+\)\s*$")
-
-
-def _normalize(name: str) -> str:
-    """Lowercase, trim, and strip a trailing Reactome (R-HSA-…) stable-ID suffix."""
-    return _RHSA_SUFFIX.sub("", name.strip()).strip().lower()
-
-
-# Gene/disease-templated Reactome pathway names. The gene (or gene-pair) symbol
-# is only a few characters of a long shared template, so a fuzzy scorer rates
-# wrong-gene siblings (e.g. "Signaling by BRCA1 mutants" vs "Signaling by AMER1
-# mutants") highly. Each entry is (regex, capture-group-index); the captured
-# token is the gene/key symbol used by the guard. Order matters — the first
-# matching pattern wins, so the slash-pair and qualified variants precede the
-# bare "signaling by <GENE>" catch-all. Kept in sync with the copy in
-# src/merger.py (the merger can't import this standalone script).
-TEMPLATED_PATTERNS = [
-    # Signaling by <GENE> (including ligand-responsive variants)
-    (r'(?i)^(?:constitutive\s+)?signaling by (?:ligand-responsive\s+)?([A-Z][\w\d]*/[\w\d]+)', 1),
-    (r'(?i)^(?:constitutive\s+)?signaling by (?:ligand-responsive\s+)?([A-Z][\w\d]*)', 1),
-
-    # Signaling by <GENE> in cancer / mutants
-    (r'(?i)^signaling by ([A-Z][\w\d]*)\s+(in cancer|mutants?)', 1),
-
-    # Nuclear events stimulated by <GENE>
-    (r'(?i)^nuclear events stimulated by ([A-Z][\w\d]*)', 1),
-
-    # Defective <GENE> causes <DISEASE>
-    (r'(?i)^defective ([A-Z][\w\d]*)\s+causes', 1),
-
-    # <GENE> variants cause <DISEASE>
-    (r'(?i)^([A-Z][\w\d]*)\s+variants?\s+cause', 1),
-
-    # Loss of Function of <GENE>
-    (r'(?i)^loss of (?:function of\s+)?([A-Z][\w\d]*/[\w\d]+)', 1),
-    (r'(?i)^loss of (?:function of\s+)?([A-Z][\w\d]*)', 1),
-
-    # <GENE> Loss of Function in Cancer
-    (r'(?i)^([A-Z][\w\d]*)\s+loss of function in cancer', 1),
-
-    # Regulation of <GENE> activity/signaling/expression/function/degradation
-    (r'(?i)^regulation of ([A-Z][\w\d]*)\s+(activity|signaling|expression|degradation|function)', 1),
-
-    # Activation of <GENE>
-    (r'(?i)^activation of ([A-Z][\w\d]*)', 1),
-
-    # <GENE> mediated ...
-    (r'(?i)^([A-Z][\w\d]*)\s+mediated', 1),
-
-    # Drug resistance of/in <GENE> mutants
-    (r'(?i)^drug resistance (?:of|in) ([A-Z][\w\d]*)', 1),
-
-    # <DRUG>-resistant <GENE> mutants
-    (r'(?i)^\w+-resistant ([A-Z][\w\d]*)\s+mutants?', 1),
-
-    # Slash-separated gene pairs: SMAD2/3, PI3K/AKT
-    (r'(?i)^([A-Z][\w\d]*/[A-Z][\w\d]*)\s+', 1),
-
-    # Aberrant regulation of ... due to <GENE> defects
-    (r'(?i)^aberrant regulation of .+ due to ([A-Z][\w\d]*)\s+defects', 1),
-]
-
-
-def extract_key_token(name: str) -> str | None:
-    """Return the gene/key token (uppercased) from a templated name, or None."""
-    for pattern, group in TEMPLATED_PATTERNS:
-        m = re.match(pattern, name.strip())
-        if m:
-            return m.group(group).upper()
-    return None
-
-
-def gene_token_guard(query: str, candidate: str) -> bool:
-    """Reject a fuzzy match whose key token differs from the query's.
-
-    Returns False only when both names are templated and their tokens differ;
-    otherwise (one/neither templated, or tokens equal) the match is allowed.
-    """
-    q_token = extract_key_token(query)
-    c_token = extract_key_token(candidate)
-    if q_token and c_token and q_token != c_token:
-        return False
-    return True
+# Pathway normalization, the templated-pattern list, and the gene-token guard are
+# imported from src.pathways (shared with src.merger), so there is one copy.
 
 
 def load_noncanonical_names() -> list[str]:

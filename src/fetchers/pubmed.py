@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
-import os
+from typing import Any
 
 import httpx
 import xmltodict
 
+from src.config import config
 from src.utils import retry, validate_pmids, load_disease_context
 
 log = logging.getLogger("bio_annot.pubmed")
@@ -19,12 +20,10 @@ EFETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 def _entrez_params() -> dict:
     """Common Entrez params: email (NCBI policy) and optional API key."""
     params: dict[str, str] = {}
-    email = os.getenv("NCBI_EMAIL")
-    if email:
-        params["email"] = email
-    api_key = os.getenv("NCBI_API_KEY")
-    if api_key:
-        params["api_key"] = api_key
+    if config.ncbi_email:
+        params["email"] = config.ncbi_email
+    if config.ncbi_api_key:
+        params["api_key"] = config.ncbi_api_key
     return params
 
 
@@ -38,7 +37,7 @@ def _as_list(value) -> list:
 
 
 @retry
-async def search_pmids(gene: str, max_results: int = 20) -> list[str]:
+async def search_pmids(gene: str, max_results: int = config.pubmed_max_results) -> list[str]:
     """Search PubMed for PMIDs related to a gene in a disease context.
 
     Returns validated PMID strings (digits only, 7-8 chars).
@@ -66,7 +65,7 @@ async def search_pmids(gene: str, max_results: int = 20) -> list[str]:
 
 
 @retry
-async def fetch_abstracts(pmids: list[str]) -> list[dict]:
+async def fetch_abstracts(pmids: list[str]) -> list[dict[str, Any]]:
     """Fetch abstract records for a list of PMIDs.
 
     Returns a list of dicts: {pmid, title, abstract, year, journal}.

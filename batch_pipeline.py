@@ -12,7 +12,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import time
 from pathlib import Path
 
@@ -20,6 +19,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from src.config import config
 from src.utils import (
     setup_logging,
     load_gene_list,
@@ -33,11 +33,11 @@ from src.extractor import (
     ANNOTATION_TOOL,
     EXTRACTION_MODEL,
     build_system_prompt,
-    _get_client,
     _truncate_words,
     _format_uniprot_text,
     _format_opentargets_text,
 )
+from src.llm import get_client
 from src.merger import merge_annotations
 from src.network import (
     build_target_network,
@@ -49,6 +49,8 @@ from src.network import (
 # Extraction model is env-driven (EXTRACTION_MODEL) via src.extractor, so batch
 # and standard pipelines stay on the same model without a second hardcoded value.
 BATCH_MODEL = EXTRACTION_MODEL
+# Batch extraction is single-source (no merge), so a smaller cap than the
+# interactive pipeline's config.max_tokens is sufficient for one annotation.
 MAX_TOKENS = 1024
 POLL_INTERVAL_SECONDS = 60
 
@@ -77,13 +79,13 @@ async def _fetch_gene(gene: str, semaphore: asyncio.Semaphore) -> tuple[str, str
 
 
 async def fetch_all(genes: list[str]) -> list[tuple[str, str]]:
-    """Fetch (gene, combined_text) pairs for every gene, 3 at a time."""
-    semaphore = asyncio.Semaphore(3)
+    """Fetch (gene, combined_text) pairs for every gene, N at a time."""
+    semaphore = asyncio.Semaphore(config.semaphore_limit)
     return await asyncio.gather(*[_fetch_gene(g, semaphore) for g in genes])
 
 
 def main() -> None:
-    setup_logging(os.getenv("LOG_LEVEL", "INFO"))
+    setup_logging(config.log_level)
     Path("outputs/raw").mkdir(parents=True, exist_ok=True)
 
     genes = load_gene_list("inputs/target_genes.txt")
@@ -95,7 +97,7 @@ def main() -> None:
     # 1. Fetch all source text synchronously.
     gene_texts = asyncio.run(fetch_all(genes))
 
-    client = _get_client()
+    client = get_client()
 
     # Build the system prompt once so every request shares a byte-identical
     # system+tools prefix. Marking it cache_control: ephemeral (the tool schema
@@ -156,12 +158,21 @@ def main() -> None:
         raw_annotations[gene] = [tool_use.input]  # single source; no merge needed
 
     # 6. Merge pass (single-source merge just validates pathway names).
+    # merge_annotations is a coroutine (it routes multi-source merges through
+    # src.llm.call_tool); batch results are single-source so no API call fires,
+    # but we still await it. Run the whole pass under one event loop.
     final_annotations: dict = {}
-    for gene, sources in raw_annotations.items():
-        merged = merge_annotations(gene, sources, reactome_ref)
-        final_annotations[gene] = merged
-        with open(Path("outputs/raw") / f"{gene}_raw.json", "w", encoding="utf-8") as f:
-            json.dump(sources, f, indent=2)
+
+    async def _merge_all() -> None:
+        for gene, sources in raw_annotations.items():
+            merged = await merge_annotations(gene, sources, reactome_ref)
+            final_annotations[gene] = merged
+            with open(
+                Path("outputs/raw") / f"{gene}_raw.json", "w", encoding="utf-8"
+            ) as f:
+                json.dump(sources, f, indent=2)
+
+    asyncio.run(_merge_all())
 
     with open("outputs/final_annotations.json", "w", encoding="utf-8") as f:
         json.dump(final_annotations, f, indent=2)

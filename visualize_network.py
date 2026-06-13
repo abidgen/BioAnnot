@@ -30,6 +30,8 @@ import pandas as pd
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 
+from src.config import config
+
 NETWORK_PATH = "outputs/target_network.gpickle"
 SCORES_PATH = "outputs/prioritized_targets.tsv"
 PLOTS_DIR = Path("outputs/plots")
@@ -56,8 +58,9 @@ NODE_SIZE_MIN = 600
 NODE_SIZE_MAX = 3000
 
 # Deterministic spring-layout seed (shown in the plot subtitle) and the minimum
-# spacing enforced between nodes after layout to prevent overlap.
-LAYOUT_SEED = 42
+# spacing enforced between nodes after layout to prevent overlap. Seed and the
+# spring constant k are centralized in src.config (env-configurable).
+LAYOUT_SEED = config.layout_seed
 MIN_NODE_DIST = 0.3
 
 
@@ -150,7 +153,7 @@ def plot_target_network(
     else:
         sizes = [(NODE_SIZE_MIN + NODE_SIZE_MAX) / 2] * len(nodes)
 
-    pos = nx.spring_layout(G, seed=LAYOUT_SEED, k=2.5)
+    pos = nx.spring_layout(G, seed=LAYOUT_SEED, k=config.layout_k)
     pos = _enforce_min_distance(pos, min_dist=MIN_NODE_DIST)
 
     fig, ax = plt.subplots(figsize=(14, 10))

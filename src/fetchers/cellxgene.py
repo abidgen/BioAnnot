@@ -18,11 +18,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+from src.config import config
 from tenacity import (
     before_sleep_log,
     retry as _tenacity_retry,
@@ -47,17 +48,13 @@ census_retry = _tenacity_retry(
 )
 
 # Pin the census version for reproducibility — "latest" drifts as new releases
-# land, which would silently change results between runs.
-CENSUS_VERSION = os.getenv("CENSUS_VERSION", "2024-07-01")
-CENSUS_TISSUE = os.getenv("CENSUS_TISSUE", "lung")
-CENSUS_MIN_CELLS = int(os.getenv("CENSUS_MIN_CELLS", "50"))
-CACHE_DIR = Path(os.getenv("CENSUS_CACHE_DIR", "refs/census_cache/"))
-ENABLE_CELLXGENE = os.getenv("ENABLE_CELLXGENE", "true").strip().lower() in (
-    "1",
-    "true",
-    "yes",
-    "on",
-)
+# land, which would silently change results between runs. Centralized in
+# src.config (env-configurable).
+CENSUS_VERSION = config.census_version
+CENSUS_TISSUE = config.census_tissue
+CENSUS_MIN_CELLS = config.census_min_cells
+CACHE_DIR = Path(config.census_cache_dir)
+ENABLE_CELLXGENE = config.enable_cellxgene
 
 CENSUS_ORGANISM = "Homo sapiens"
 
@@ -180,7 +177,7 @@ async def fetch_cellxgene(
     gene: str,
     tissue: str | None = None,
     min_cells: int | None = None,
-) -> dict:
+) -> dict[str, float]:
     """Mean per-cell-type expression for a gene in a tissue, from CellxGene Census.
 
     Returns ``{cell_type: mean_expr}`` (raw-count mean), restricted to cell types

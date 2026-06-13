@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import httpx
 
@@ -14,7 +15,7 @@ UNIPROT_SEARCH_URL = "https://rest.uniprot.org/uniprotkb/search"
 
 
 @retry
-async def fetch_uniprot(gene: str, organism: str = "9606") -> dict:
+async def fetch_uniprot(gene: str, organism: str = "9606") -> dict[str, Any]:
     """Fetch the top UniProtKB entry for a gene in a given organism (default human).
 
     Returns a flat dict with accession, names, function text, subcellular

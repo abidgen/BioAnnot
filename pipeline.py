@@ -1,7 +1,13 @@
 """Main orchestrator (CLAUDE.md Step 8).
 
 Fetches PubMed / UniProt / OpenTargets for each gene, extracts structured
-annotations, merges them, then builds the target network and prioritized table.
+annotations, merges them, enriches with STRING / GTEx / CellxGene, then builds
+the target network and prioritized table.
+
+The per-gene work is split into composable stages — fetch → extract → merge →
+enrich — each a small async function taking ``(gene, …, config)``. ``run_gene``
+chains them; ``main`` runs ``run_gene`` across all genes with a concurrency cap
+and per-gene error isolation.
 
 Run:  python pipeline.py
 """
@@ -11,32 +17,22 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
-import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.utils import (
-    setup_logging,
-    load_gene_list,
-    load_ref_set,
-    load_disease_context,
-)
+from src.config import config, PipelineConfig
+from src.utils import setup_logging, load_gene_list, load_ref_set
 from src.fetchers.pubmed import search_pmids, fetch_abstracts
 from src.fetchers.uniprot import fetch_uniprot
 from src.fetchers.opentargets import fetch_opentargets
 from src.fetchers.string_db import fetch_string
-from src.fetchers.cellxgene import (
-    fetch_cellxgene,
-    ENABLE_CELLXGENE,
-    CENSUS_TISSUE,
-    CENSUS_VERSION,
-)
+from src.fetchers.cellxgene import fetch_cellxgene
 from src.extractor import (
     extract_from_text,
     extract_from_uniprot,
@@ -51,53 +47,110 @@ from src.network import (
     save_prioritized_tsv,
 )
 
-CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.65"))
-
 ANNOTATIONS_JSONL = Path("outputs/annotations.jsonl")
 
 log = logging.getLogger("bio_annot.pipeline")
 
+# Canonical Reactome reference, loaded once and cached. The merge stage needs it,
+# but the stage signatures are (gene, …, config), so it is sourced here rather
+# than threaded through every call.
+_REACTOME_REF_CACHE: set[str] | None = None
 
-async def process_gene(gene: str, reactome_ref: set, session) -> dict | None:
-    """Fetch all sources, extract annotations, merge, return merged dict or None."""
-    # 1. PubMed abstracts → extraction
-    pmids = await search_pmids(gene)
+
+def _reactome_ref() -> set[str]:
+    """Lazily load and cache the canonical Reactome name set."""
+    global _REACTOME_REF_CACHE
+    if _REACTOME_REF_CACHE is None:
+        _REACTOME_REF_CACHE = load_ref_set("refs/reactome_pathways.txt")
+    return _REACTOME_REF_CACHE
+
+
+async def run_fetch_stage(gene: str, config: PipelineConfig) -> dict[str, Any]:
+    """Fetch raw data from PubMed, UniProt, OpenTargets.
+
+    Returns a dict with the assembled PubMed abstract text (plus its PMIDs) and
+    the raw UniProt / OpenTargets records (``{}`` when a source has no entry).
+    """
+    pmids = await search_pmids(gene, config.pubmed_max_results)
     abstracts = await fetch_abstracts(pmids)
     pubmed_text = "\n\n".join(
         f"PMID:{a['pmid']}\n{a['abstract']}" for a in abstracts
     )
-    pubmed_ann = extract_from_text(gene, pubmed_text, pmids)
-
-    # 2. UniProt → extraction
     up_data = await fetch_uniprot(gene)
-    uniprot_ann = extract_from_uniprot(gene, up_data) if up_data else None
-
-    # 3. OpenTargets → extraction
     ot_data = await fetch_opentargets(gene)
-    ot_ann = extract_from_opentargets(gene, ot_data) if ot_data else None
+    return {
+        "pmids": pmids,
+        "pubmed_text": pubmed_text,
+        "uniprot": up_data,
+        "opentargets": ot_data,
+    }
 
-    # 4. Keep only high-confidence sources
+
+async def run_extract_stage(
+    gene: str, fetched: dict[str, Any], config: PipelineConfig
+) -> list[dict]:
+    """Extract structured annotations from each source.
+
+    Runs the LLM extractor over PubMed text, UniProt, and OpenTargets, persists
+    the (unfiltered) per-source extractions to ``outputs/raw/{gene}_raw.json``,
+    and returns only the sources clearing the confidence gate.
+    """
+    pubmed_ann = await extract_from_text(
+        gene, fetched["pubmed_text"], fetched["pmids"]
+    )
+    up_data = fetched["uniprot"]
+    ot_data = fetched["opentargets"]
+    uniprot_ann = await extract_from_uniprot(gene, up_data) if up_data else None
+    ot_ann = await extract_from_opentargets(gene, ot_data) if ot_data else None
+
+    # Persist the raw per-source LLM extractions for provenance/debugging.
+    # (STRING partners are persisted with the merged record, not here.)
+    raw_path = Path("outputs/raw") / f"{gene}_raw.json"
+    with open(raw_path, "w", encoding="utf-8") as f:
+        json.dump(
+            {"pubmed": pubmed_ann, "uniprot": uniprot_ann, "opentargets": ot_ann},
+            f,
+            indent=2,
+        )
+
+    # Keep only high-confidence sources for the merge.
     sources = [
         a
         for a in [pubmed_ann, uniprot_ann, ot_ann]
-        if a and a.get("confidence", 0) >= CONFIDENCE_THRESHOLD
+        if a and a.get("confidence", 0) >= config.confidence_threshold
     ]
+    return sources
 
-    # 5. Bail if nothing survives the confidence gate
-    if not sources:
+
+async def run_merge_stage(
+    gene: str, extractions: list[dict], config: PipelineConfig
+) -> dict | None:
+    """Merge and resolve conflicts across sources.
+
+    Returns ``None`` (a clean skip, logged) when no source cleared the
+    confidence gate, so the gene is excluded from output without being treated
+    as a failure.
+    """
+    if not extractions:
         log.warning("No high-confidence sources for %s", gene)
         return None
+    return await merge_annotations(gene, extractions, _reactome_ref())
 
-    # 6. Merge
-    merged = merge_annotations(gene, sources, reactome_ref)
 
-    # 6b. STRING PPI partners (factual, not LLM-extracted) — attach to the merged
-    # record for the network builder. Fetched independently of the confidence
-    # gate; only attached to genes that survived merging.
+async def run_enrich_stage(
+    gene: str, merged: dict, config: PipelineConfig
+) -> dict:
+    """Enrich the merged record with STRING, GTEx, and CellxGene.
+
+    Mutates and returns ``merged`` with ``string_interactors``,
+    ``safety_assessment``, and (when enabled) ``cellxgene_expression`` plus
+    measured cell types unioned into ``cellular_states``.
+    """
+    # STRING PPI partners (factual, not LLM-extracted) for the network builder.
     string_interactors = await fetch_string(gene)
     merged["string_interactors"] = string_interactors
 
-    # 6c. GTEx normal-tissue safety assessment — attach for the network scorer.
+    # GTEx normal-tissue safety assessment for the network scorer.
     safety = assess_safety(gene)
     merged["safety_assessment"] = safety
     if safety.get("safety_flag"):
@@ -110,13 +163,13 @@ async def process_gene(gene: str, reactome_ref: set, session) -> dict | None:
             safety.get("max_tpm", 0.0),
         )
 
-    # 6d. CellxGene Census single-cell expression — grounds cellular_states in
+    # CellxGene Census single-cell expression — grounds cellular_states in
     # measured per-cell-type expression for the configured tissue.
-    if ENABLE_CELLXGENE:
+    if config.enable_cellxgene:
         census_data = await fetch_cellxgene(gene)
         merged["cellxgene_expression"] = {
-            "tissue": CENSUS_TISSUE,
-            "census_version": CENSUS_VERSION,
+            "tissue": config.census_tissue,
+            "census_version": config.census_version,
             "top_cell_types": [
                 {"cell_type": k, "mean_expr": v}
                 for k, v in list(census_data.items())[:10]
@@ -131,50 +184,61 @@ async def process_gene(gene: str, reactome_ref: set, session) -> dict | None:
             dict.fromkeys(merged.get("cellular_states", []) + top5)
         )
 
-    # 7. Persist raw sources and append the merged record
-    raw_path = Path("outputs/raw") / f"{gene}_raw.json"
-    with open(raw_path, "w", encoding="utf-8") as f:
-        json.dump(
-            {
-                "pubmed": pubmed_ann,
-                "uniprot": uniprot_ann,
-                "opentargets": ot_ann,
-                "string": string_interactors,
-            },
-            f,
-            indent=2,
-        )
-    with open(ANNOTATIONS_JSONL, "a", encoding="utf-8") as f:
-        f.write(json.dumps(merged) + "\n")
-
-    # 8. Done
     return merged
 
 
+async def run_gene(gene: str, config: PipelineConfig) -> dict | None:
+    """Run all stages for a single gene.
+
+    Returns the enriched annotation, or ``None`` when no high-confidence source
+    survived the merge gate.
+    """
+    fetched = await run_fetch_stage(gene, config)
+    extractions = await run_extract_stage(gene, fetched, config)
+    merged = await run_merge_stage(gene, extractions, config)
+    if merged is None:
+        return None
+    enriched = await run_enrich_stage(gene, merged, config)
+
+    # Append the merged record to the run's annotations log.
+    with open(ANNOTATIONS_JSONL, "a", encoding="utf-8") as f:
+        f.write(json.dumps(enriched) + "\n")
+    return enriched
+
+
 async def main() -> None:
-    setup_logging(os.getenv("LOG_LEVEL", "INFO"))
+    setup_logging(config.log_level)
     Path("outputs/raw").mkdir(parents=True, exist_ok=True)
     # Start each run with a fresh annotations log so re-runs don't accumulate.
     ANNOTATIONS_JSONL.unlink(missing_ok=True)
 
+    log.info("Running in disease context: %s", config.disease_context)
     genes = load_gene_list("inputs/target_genes.txt")
-    reactome_ref = load_ref_set("refs/reactome_pathways.txt")
-    disease_context = load_disease_context()
-    log.info("Running in disease context: %s", disease_context["context"])
     log.info("Processing %d genes", len(genes))
 
+    # Process genes with a concurrency limit (respect API rate limits).
+    sem = asyncio.Semaphore(config.semaphore_limit)
+
+    async def bounded(gene: str) -> dict | None:
+        async with sem:
+            return await run_gene(gene, config)
+
+    results = await asyncio.gather(
+        *[bounded(g) for g in genes], return_exceptions=True
+    )
+
+    # Error isolation: one gene's failure (e.g. a ConnectTimeout) must not kill
+    # the whole run — log it, exclude it, and keep the rest.
     final_annotations: dict = {}
-    # Process genes with a concurrency limit of 3 (respect API rate limits).
-    semaphore = asyncio.Semaphore(3)
-
-    async def bounded(gene: str) -> None:
-        async with semaphore:
-            result = await process_gene(gene, reactome_ref, session=None)
-            if result:
-                final_annotations[gene] = result
-
-    async with httpx.AsyncClient(timeout=30.0) as session:
-        await asyncio.gather(*[bounded(g) for g in genes])
+    failed = []
+    for gene, result in zip(genes, results):
+        if isinstance(result, Exception):
+            log.error("Gene %s failed: %s, skipping", gene, result)
+            failed.append(gene)
+        elif result:
+            final_annotations[gene] = result
+    if failed:
+        log.warning("Failed genes (excluded from output): %s", failed)
 
     # Write final merged JSON
     with open("outputs/final_annotations.json", "w", encoding="utf-8") as f:
@@ -186,13 +250,13 @@ async def main() -> None:
     # Build network and prioritize
     G = build_target_network(final_annotations)
     save_network(G, "outputs/target_network.gpickle")
-    scores = compute_priority_scores(G, disease_context["context"])
+    scores = compute_priority_scores(G, config.disease_context)
     save_prioritized_tsv(scores, "outputs/prioritized_targets.tsv")
     log.info("Top 5 targets: %s", [s["gene"] for s in scores[:5]])
 
     # Optionally refresh the pathway synonym map from this run's NON-CANONICAL
     # names, so the next run's fuzzy canonicalization picks them up.
-    if os.getenv("AUTO_UPDATE_SYNONYMS", "false").lower() == "true":
+    if config.auto_update_synonyms:
         log.info("AUTO_UPDATE_SYNONYMS=true — updating refs/pathway_synonyms.json")
         subprocess.run([sys.executable, "scripts/build_synonyms.py"], check=False)
 

@@ -11,10 +11,10 @@ from __future__ import annotations
 
 import json
 import logging
-import os
+from typing import Any
 
-import anthropic
-
+from src.config import config
+from src.llm import call_tool
 from src.utils import (
     CACHE_MIN_TOKENS,
     estimate_tokens,
@@ -24,11 +24,11 @@ from src.utils import (
 
 log = logging.getLogger("bio_annot.extractor")
 
-# Model is env-configurable; default preserves the CLAUDE.md extraction model.
-EXTRACTION_MODEL = os.getenv("EXTRACTION_MODEL", "claude-opus-4-8")
+# Model and token budget are centralized in src.config (env-configurable).
+EXTRACTION_MODEL = config.extraction_model
 
 MAX_INPUT_WORDS = 3000
-MAX_TOKENS = 4096
+MAX_TOKENS = config.max_tokens
 
 # Detailed, static base prompt. Kept long and stable so that, together with the
 # tool schema, it forms a cacheable prefix above the prompt-cache minimum. Only
@@ -197,19 +197,6 @@ def _log_cache_prefix_size() -> None:
 
 _log_cache_prefix_size()
 
-_client: anthropic.Anthropic | None = None
-
-
-def _get_client() -> anthropic.Anthropic:
-    """Lazily construct the Anthropic client (resolves ANTHROPIC_API_KEY).
-
-    Deferred so importing this module does not require the key to be set.
-    """
-    global _client
-    if _client is None:
-        _client = anthropic.Anthropic()
-    return _client
-
 
 def _truncate_words(text: str, max_words: int = MAX_INPUT_WORDS) -> str:
     """Truncate text to at most max_words whitespace-delimited words."""
@@ -220,59 +207,36 @@ def _truncate_words(text: str, max_words: int = MAX_INPUT_WORDS) -> str:
     return " ".join(words[:max_words])
 
 
-def extract_from_text(gene: str, text: str, source_pmids: list[str]) -> dict:
+async def extract_from_text(
+    gene: str, text: str, source_pmids: list[str]
+) -> dict[str, Any]:
     """Extract structured annotations for a gene from free text.
 
-    Calls the Anthropic API with the annotate_target tool forced, parses the
-    tool_use block, attaches validated source PMIDs, and logs token usage.
+    Calls Claude via :func:`src.llm.call_tool` with the annotate_target tool
+    forced (prompt caching + token logging handled there), then attaches
+    validated source PMIDs to the returned annotation.
     """
     truncated = _truncate_words(text)
 
     user_content = f"Gene: {gene}\n\n{truncated}"
 
-    response = _get_client().messages.create(
+    annotation_input, _usage = await call_tool(
         model=EXTRACTION_MODEL,
-        max_tokens=MAX_TOKENS,
-        system=[
-            {
-                "type": "text",
-                "text": build_system_prompt(),
-                "cache_control": {"type": "ephemeral"},
-            }
-        ],
-        tools=ANNOTATION_TOOL,
-        tool_choice={"type": "tool", "name": "annotate_target"},
+        system_prompt=build_system_prompt(),
         messages=[{"role": "user", "content": user_content}],
+        tools=ANNOTATION_TOOL,
+        tool_name="annotate_target",
+        max_tokens=MAX_TOKENS,
+        label=f"extract_from_text({gene})",
     )
 
-    usage = response.usage
-    log.info(
-        "extract_from_text(%s): input_tokens=%s output_tokens=%s",
-        gene,
-        usage.input_tokens,
-        usage.output_tokens,
-    )
-    log.info(
-        "extract_from_text(%s) cache: %s read, %s created",
-        gene,
-        usage.cache_read_input_tokens,
-        usage.cache_creation_input_tokens,
-    )
-
-    tool_use = next(
-        (block for block in response.content if block.type == "tool_use"), None
-    )
-    if tool_use is None:
-        log.warning("No tool_use block returned for %s", gene)
-        return {"gene_symbol": gene, "functions": [], "pathways": [], "confidence": 0.0}
-
-    annotation = dict(tool_use.input)
+    annotation = dict(annotation_input)
     # Only pass through validated PMIDs — never invent or forward unvalidated IDs.
     annotation["source_pmids"] = validate_pmids(source_pmids)
     return annotation
 
 
-def _format_uniprot_text(uniprot_data: dict) -> str:
+def _format_uniprot_text(uniprot_data: dict[str, Any]) -> str:
     """Render a UniProt record dict as a readable text block."""
     lines = [
         f"Accession: {uniprot_data.get('accession', '')}",
@@ -295,13 +259,13 @@ def _format_uniprot_text(uniprot_data: dict) -> str:
     return "\n".join(lines)
 
 
-def extract_from_uniprot(gene: str, uniprot_data: dict) -> dict:
+async def extract_from_uniprot(gene: str, uniprot_data: dict[str, Any]) -> dict[str, Any]:
     """Format a UniProt record and extract annotations from it (no PMIDs)."""
     text = _format_uniprot_text(uniprot_data)
-    return extract_from_text(gene, text, source_pmids=[])
+    return await extract_from_text(gene, text, source_pmids=[])
 
 
-def _format_opentargets_text(ot_data: dict) -> str:
+def _format_opentargets_text(ot_data: dict[str, Any]) -> str:
     """Render an OpenTargets record dict as a readable text block."""
     lines = [
         f"Ensembl ID: {ot_data.get('ensembl_id', '')}",
@@ -329,7 +293,7 @@ def _format_opentargets_text(ot_data: dict) -> str:
     return "\n".join(lines)
 
 
-def extract_from_opentargets(gene: str, ot_data: dict) -> dict:
+async def extract_from_opentargets(gene: str, ot_data: dict[str, Any]) -> dict[str, Any]:
     """Format an OpenTargets record and extract annotations from it (no PMIDs)."""
     text = _format_opentargets_text(ot_data)
-    return extract_from_text(gene, text, source_pmids=[])
+    return await extract_from_text(gene, text, source_pmids=[])

@@ -8,9 +8,11 @@ to enrich the target network with database-backed PPI edges that complement the
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import httpx
 
+from src.config import config
 from src.utils import retry
 
 log = logging.getLogger("bio_annot.string_db")
@@ -21,9 +23,10 @@ log = logging.getLogger("bio_annot.string_db")
 STRING_PARTNERS_URL = "https://string-db.org/api/json/interaction_partners"
 
 # STRING combined-score scale is 0–1000; 700 == "high confidence" per STRING docs.
-DEFAULT_MIN_SCORE = 700
+# Defaults centralized in src.config (env-configurable).
+DEFAULT_MIN_SCORE = config.string_min_score
 # Cap partners per gene so a hub protein doesn't flood the network.
-DEFAULT_LIMIT = 50
+DEFAULT_LIMIT = config.string_limit
 # STRING asks API consumers to identify themselves on each request.
 CALLER_IDENTITY = "bio_annotation_pipeline"
 
@@ -50,7 +53,7 @@ async def fetch_string(
     species: str = "9606",
     min_score: int = DEFAULT_MIN_SCORE,
     limit: int = DEFAULT_LIMIT,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Fetch high-confidence STRING interaction partners for a gene.
 
     Returns a list of ``{"partner": SYMBOL, "combined_score": int}`` (score on
