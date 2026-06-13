@@ -12,6 +12,8 @@ import asyncio
 import json
 import logging
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import httpx
@@ -187,6 +189,12 @@ async def main() -> None:
     scores = compute_priority_scores(G, disease_context["context"])
     save_prioritized_tsv(scores, "outputs/prioritized_targets.tsv")
     log.info("Top 5 targets: %s", [s["gene"] for s in scores[:5]])
+
+    # Optionally refresh the pathway synonym map from this run's NON-CANONICAL
+    # names, so the next run's fuzzy canonicalization picks them up.
+    if os.getenv("AUTO_UPDATE_SYNONYMS", "false").lower() == "true":
+        log.info("AUTO_UPDATE_SYNONYMS=true — updating refs/pathway_synonyms.json")
+        subprocess.run([sys.executable, "scripts/build_synonyms.py"], check=False)
 
 
 if __name__ == "__main__":

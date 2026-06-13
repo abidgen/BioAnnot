@@ -9,3 +9,4 @@ tqdm>=4.66.0
 matplotlib>=3.8.0
 cellxgene-census>=1.15.0
 tiledbsoma>=1.10.0
+rapidfuzz>=3.0.0

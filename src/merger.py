@@ -12,9 +12,12 @@ import logging
 import os
 import re
 from datetime import datetime, timezone
+from pathlib import Path
+
+from rapidfuzz import fuzz, process
 
 from src.extractor import ANNOTATION_TOOL, _get_client
-from src.utils import CACHE_MIN_TOKENS, estimate_tokens, validate_pmids
+from src.utils import CACHE_MIN_TOKENS, estimate_tokens, load_ref_set, validate_pmids
 
 log = logging.getLogger("bio_annot.merger")
 
@@ -23,6 +26,16 @@ MERGE_MODEL = os.getenv("MERGE_MODEL", "claude-sonnet-4-6")
 MAX_TOKENS = 4096
 
 NON_CANONICAL_PREFIX = "NON-CANONICAL: "
+
+# Minimum rapidfuzz token_sort_ratio (0–100) for a pathway name to be accepted
+# as a fuzzy match to a canonical Reactome name.
+FUZZY_THRESHOLD = float(os.getenv("FUZZY_THRESHOLD", "85"))
+
+# Informal→canonical pathway synonym map (built by scripts/build_synonyms.py) and
+# the canonical Reactome reference used to validate it. The map is loaded and
+# validated below, once _normalize is defined.
+SYNONYMS_PATH = Path("refs/pathway_synonyms.json")
+REACTOME_PATH = "refs/reactome_pathways.txt"
 
 # Static merge system prompt. Per-gene context (gene symbol, source count, source
 # records) lives entirely in the user message, so this prompt is identical on
@@ -125,31 +138,236 @@ def _normalize(name: str) -> str:
     return _RHSA_SUFFIX.sub("", name.strip()).strip().lower()
 
 
+def _load_reactome_ref() -> set[str]:
+    """Load the canonical Reactome name set used to validate synonyms at import.
+
+    Best-effort: returns an empty set (validation then skipped) if the reference
+    file is missing or unreadable, so importing the module never hard-fails.
+    """
+    try:
+        return load_ref_set(REACTOME_PATH)
+    except OSError as exc:
+        log.warning("Could not load Reactome reference %s (%s)", REACTOME_PATH, exc)
+        return set()
+
+
+def _load_synonyms(reactome_ref: set[str]) -> dict[str, str]:
+    """Load and validate the informal→canonical pathway synonym map.
+
+    Keys are lowercased and null/empty values skipped. Each non-null value is
+    validated against ``reactome_ref`` (normalized comparison): a value that is
+    not a real Reactome name is dropped with a WARNING and treated as null — so a
+    synonym lookup can only ever yield a genuine canonical name, returned in the
+    reference's exact casing. This guards against the synonym-builder LLM
+    emitting plausible-sounding but non-existent Reactome names. If the Reactome
+    reference is unavailable, validation is skipped (values loaded as-is).
+    """
+    if not SYNONYMS_PATH.exists():
+        return {}
+    try:
+        with open(SYNONYMS_PATH, encoding="utf-8") as f:
+            raw = json.load(f)
+    except (json.JSONDecodeError, OSError) as exc:
+        log.warning("Could not load %s (%s); fuzzy synonyms disabled", SYNONYMS_PATH, exc)
+        return {}
+
+    if not reactome_ref:
+        log.warning(
+            "Reactome reference unavailable; loading %d synonym(s) without validation",
+            sum(1 for v in raw.values() if v),
+        )
+        return {k.lower(): v for k, v in raw.items() if v}
+
+    canonical_by_norm = {_normalize(r): r for r in reactome_ref}
+    validated: dict[str, str] = {}
+    for informal, value in raw.items():
+        if not value:
+            continue
+        canonical = canonical_by_norm.get(_normalize(value))
+        if canonical is None:
+            log.warning(
+                "Synonym %r → %r is not in the Reactome reference; ignoring it",
+                informal,
+                value,
+            )
+            continue
+        validated[informal.lower()] = canonical
+    return validated
+
+
+_REACTOME_REF = _load_reactome_ref()
+_SYNONYMS = _load_synonyms(_REACTOME_REF)
+
+
 def _utc_now_iso() -> str:
     """Current UTC time as an ISO-8601 string with a trailing Z."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _flag_noncanonical(pathways: list[str], reactome_ref: set[str]) -> list[str]:
-    """Prefix any pathway not in the canonical Reactome set with NON-CANONICAL:.
+# Gene/disease-templated Reactome pathway names. The gene (or gene-pair) symbol
+# is only a few characters of a long shared template, so a fuzzy scorer rates
+# wrong-gene siblings (e.g. "Signaling by BRCA1 mutants" vs "Signaling by AMER1
+# mutants") highly. Each entry is (regex, capture-group-index); the captured
+# token is the gene/key symbol used by the guard. Order matters — the first
+# matching pattern wins. Kept in sync with the copy in scripts/build_synonyms.py
+# (that standalone script can't import this module).
+TEMPLATED_PATTERNS = [
+    # Signaling by <GENE> (including ligand-responsive variants)
+    (r'(?i)^(?:constitutive\s+)?signaling by (?:ligand-responsive\s+)?([A-Z][\w\d]*/[\w\d]+)', 1),
+    (r'(?i)^(?:constitutive\s+)?signaling by (?:ligand-responsive\s+)?([A-Z][\w\d]*)', 1),
 
-    The match is case- and whitespace-insensitive (both sides normalized), so
-    "EGFR Signaling Pathway" matches "EGFR signaling pathway". The original
-    casing of the model's name is preserved in the output. Idempotent — a name
-    already carrying the prefix is checked on its bare form, never double-prefixed.
+    # Signaling by <GENE> in cancer / mutants
+    (r'(?i)^signaling by ([A-Z][\w\d]*)\s+(in cancer|mutants?)', 1),
+
+    # Nuclear events stimulated by <GENE>
+    (r'(?i)^nuclear events stimulated by ([A-Z][\w\d]*)', 1),
+
+    # Defective <GENE> causes <DISEASE>
+    (r'(?i)^defective ([A-Z][\w\d]*)\s+causes', 1),
+
+    # <GENE> variants cause <DISEASE>
+    (r'(?i)^([A-Z][\w\d]*)\s+variants?\s+cause', 1),
+
+    # Loss of Function of <GENE>
+    (r'(?i)^loss of (?:function of\s+)?([A-Z][\w\d]*/[\w\d]+)', 1),
+    (r'(?i)^loss of (?:function of\s+)?([A-Z][\w\d]*)', 1),
+
+    # <GENE> Loss of Function in Cancer
+    (r'(?i)^([A-Z][\w\d]*)\s+loss of function in cancer', 1),
+
+    # Regulation of <GENE> activity/signaling/expression/function/degradation
+    (r'(?i)^regulation of ([A-Z][\w\d]*)\s+(activity|signaling|expression|degradation|function)', 1),
+
+    # Activation of <GENE>
+    (r'(?i)^activation of ([A-Z][\w\d]*)', 1),
+
+    # <GENE> mediated ...
+    (r'(?i)^([A-Z][\w\d]*)\s+mediated', 1),
+
+    # Drug resistance of/in <GENE> mutants
+    (r'(?i)^drug resistance (?:of|in) ([A-Z][\w\d]*)', 1),
+
+    # <DRUG>-resistant <GENE> mutants
+    (r'(?i)^\w+-resistant ([A-Z][\w\d]*)\s+mutants?', 1),
+
+    # Slash-separated gene pairs: SMAD2/3, PI3K/AKT
+    (r'(?i)^([A-Z][\w\d]*/[A-Z][\w\d]*)\s+', 1),
+
+    # Aberrant regulation of ... due to <GENE> defects
+    (r'(?i)^aberrant regulation of .+ due to ([A-Z][\w\d]*)\s+defects', 1),
+]
+
+
+def extract_key_token(name: str) -> str | None:
+    """Return the gene/key token (uppercased) from a templated name, or None."""
+    for pattern, group in TEMPLATED_PATTERNS:
+        m = re.match(pattern, name.strip())
+        if m:
+            return m.group(group).upper()
+    return None
+
+
+def gene_token_guard(query: str, candidate: str) -> bool:
+    """Reject a fuzzy match whose key token differs from the query's.
+
+    Returns False only when both names are templated and their tokens differ;
+    otherwise (one/neither templated, or tokens equal) the match is allowed.
     """
-    normalized_ref = {_normalize(r) for r in reactome_ref}
+    q_token = extract_key_token(query)
+    c_token = extract_key_token(candidate)
+    if q_token and c_token and q_token != c_token:
+        return False
+    return True
+
+
+def _fuzzy_canonical(
+    pathway: str, reactome_ref: set[str]
+) -> tuple[bool, str, str]:
+    """Resolve a pathway name to its canonical Reactome form.
+
+    Returns ``(is_canonical, method, name)`` where ``method`` is one of
+    ``exact`` / ``synonym`` / ``fuzzy`` / ``non_canonical``. On a canonical
+    match ``name`` is the exact Reactome string; otherwise it is the bare input.
+    Resolution proceeds in priority order:
+
+      a) strip the R-HSA suffix, then a normalized exact match → "exact";
+      b) the informal→canonical synonym map (case-insensitive) → "synonym";
+      c) rapidfuzz token_sort_ratio ≥ FUZZY_THRESHOLD → "fuzzy";
+      d) otherwise → "non_canonical".
+
+    Logs the method (and score) for every call.
+    """
+    bare = (
+        pathway[len(NON_CANONICAL_PREFIX):]
+        if pathway.startswith(NON_CANONICAL_PREFIX)
+        else pathway
+    ).strip()
+    key = _normalize(bare)
+
+    # a) Exact match (normalized) → return the reference's canonical casing.
+    canonical_by_norm = {_normalize(r): r for r in reactome_ref}
+    if key in canonical_by_norm:
+        canonical = canonical_by_norm[key]
+        log.info("pathway %r → exact %r (score=100.0)", bare, canonical)
+        return True, "exact", canonical
+
+    # b) Synonym map (lowercased keys; null entries already dropped on load).
+    synonym = _SYNONYMS.get(bare.lower())
+    if synonym:
+        log.info("pathway %r → synonym %r", bare, synonym)
+        return True, "synonym", synonym
+
+    # c) Fuzzy match against the full canonical set (case-insensitive scoring).
+    choices = list(reactome_ref)
+    best = (
+        process.extractOne(
+            bare, choices, scorer=fuzz.token_sort_ratio, processor=str.lower
+        )
+        if choices
+        else None
+    )
+    if best is not None:
+        match, score, _ = best
+        if score >= FUZZY_THRESHOLD and gene_token_guard(bare, match):
+            log.info("pathway %r → fuzzy %r (score=%.1f)", bare, match, score)
+            return True, "fuzzy", match
+        if score >= FUZZY_THRESHOLD:
+            # Score cleared but the gene token differs — reject the sibling. With
+            # no LLM at merge time, this falls through to non_canonical.
+            log.info(
+                "pathway %r → non_canonical (fuzzy %r score=%.1f rejected by "
+                "gene-token guard)",
+                bare,
+                match,
+                score,
+            )
+        else:
+            log.info(
+                "pathway %r → non_canonical (best fuzzy %r score=%.1f < %.0f)",
+                bare,
+                match,
+                score,
+                FUZZY_THRESHOLD,
+            )
+    else:
+        log.info("pathway %r → non_canonical (no reactome reference)", bare)
+
+    # d) No canonical resolution.
+    return False, "non_canonical", bare
+
+
+def _flag_noncanonical(pathways: list[str], reactome_ref: set[str]) -> list[str]:
+    """Canonicalize pathway names; prefix unresolved ones with NON-CANONICAL:.
+
+    Each name is run through :func:`_fuzzy_canonical`: exact/synonym/fuzzy hits
+    are replaced with the exact Reactome string, everything else is prefixed
+    ``NON-CANONICAL: ``. Idempotent — a name already carrying the prefix is
+    checked on its bare form, never double-prefixed.
+    """
     flagged: list[str] = []
     for pathway in pathways:
-        bare = (
-            pathway[len(NON_CANONICAL_PREFIX):]
-            if pathway.startswith(NON_CANONICAL_PREFIX)
-            else pathway
-        )
-        if _normalize(bare) in normalized_ref:
-            flagged.append(bare)
-        else:
-            flagged.append(NON_CANONICAL_PREFIX + bare)
+        is_canonical, _method, name = _fuzzy_canonical(pathway, reactome_ref)
+        flagged.append(name if is_canonical else NON_CANONICAL_PREFIX + name)
     return flagged
 
 
