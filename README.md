@@ -11,7 +11,10 @@ associations, interactors, and druggability notes — by querying PubMed, UniPro
 OpenTargets, and Reactome. It uses the Anthropic API with forced tool use to extract
 structured annotations from each source and to merge them with conflict resolution, then
 builds a NetworkX graph from the merged annotations to score and rank targets for
-prioritization.
+prioritization. The merged records are further enriched with database-backed signals that
+bypass the LLM — STRING protein interactions, a GTEx normal-tissue safety flag, and
+CellxGene Census single-cell expression — which feed both the graph and the prioritization
+composite.
 
 ## Architecture
 
@@ -25,19 +28,21 @@ inputs/target_genes.txt
 │   ├─ uniprot.py      → function, GO, locations   │
 │   ├─ opentargets.py  → pathways, disease assoc.  │
 │   ├─ reactome.py     → canonical pathway names   │
-│   └─ string_db.py    → PPI partners (≥700)       │
+│   ├─ string_db.py    → PPI partners (≥700)       │
+│   └─ cellxgene.py    → single-cell expr (Census) │
 └──────────────────────────────────────────────────┘
         │  raw source text (per gene, per source)
-        │  [string_db output skips the LLM — see below]
+        │  [string_db + cellxgene output skip the LLM — see below]
         ▼
 ┌───────────────────────────────────────────────┐
-│  extractor.py   (claude-opus-4-8, tool use)   │
+│  extractor.py   (model: EXTRACTION_MODEL,     │
+│   tool use, cached system+tools prompt)       │
 │   one structured annotation per source        │
 └───────────────────────────────────────────────┘
         │  list of per-source annotations
         ▼
 ┌───────────────────────────────────────────────┐
-│  merger.py      (claude-sonnet-4-6, tool use) │
+│  merger.py      (model: MERGE_MODEL, tool use)│
 │   reconcile sources, resolve conflicts,       │
 │   flag non-canonical pathways vs Reactome ref │
 └───────────────────────────────────────────────┘
@@ -51,11 +56,19 @@ inputs/target_genes.txt
         │
         ▼
 ┌──────────────────────────────────────────────────────┐
+│  fetchers/cellxgene.py  (CellxGene Census)           │
+│   mean expression per cell type in tissue →          │
+│   attach cellxgene_expression; union top cell        │
+│   types into cellular_states                         │
+└──────────────────────────────────────────────────────┘
+        │
+        ▼
+┌──────────────────────────────────────────────────────┐
 │  network.py     (NetworkX)                           │
 │   build graph (pathway_comembership, direct_inter-   │
 │   action, string_interaction edges; + STRING         │
 │   satellite nodes) + compute priority scores         │
-│   (GTEx-flagged targets get a 0.75 composite penalty)│
+│   (cellxgene_score term; GTEx-flagged ×0.75 penalty) │
 └──────────────────────────────────────────────────────┘
         │
         ▼
@@ -71,7 +84,17 @@ merger** and are attached to each merged record directly, feeding `network.py` a
 `string_interaction` edges (and satellite interactor nodes). Likewise, the GTEx safety
 filter ([`src/filters/gtex_safety.py`](src/filters/gtex_safety.py)) is a lookup, not an LLM
 call: it attaches a `safety_assessment` to each merged record so `network.py` can
-deprioritize targets that are highly expressed in sensitive normal tissues.
+deprioritize targets that are highly expressed in sensitive normal tissues. The CellxGene
+Census fetcher ([`src/fetchers/cellxgene.py`](src/fetchers/cellxgene.py)) likewise bypasses
+the LLM: it measures mean per-cell-type expression in the configured tissue, attaches a
+`cellxgene_expression` block to each record, unions the top cell types into
+`cellular_states` (prefixed `CellxGene: `), and feeds a `cellxgene_score` into the
+prioritization composite.
+
+Both LLM stages use **prompt caching**: the (static) system prompt and tool schema are
+marked `cache_control: ephemeral`, so after the first call the shared prefix is served from
+cache rather than re-billed on every gene. The models are env-configurable
+(`EXTRACTION_MODEL`, `MERGE_MODEL`) rather than hardcoded.
 
 ## Quick Start
 
@@ -115,6 +138,13 @@ Fill these into your `.env` file (never commit it — it is git-ignored):
 | `CONFIDENCE_THRESHOLD` | Optional | Drops extractions below this confidence (default `0.65`) | — |
 | `DISEASE_CONTEXT` | Optional | Single disease label that focuses the run (default `cancer`; e.g. `fibrosis`, `neurodegeneration`) | — |
 | `DISEASE_TERMS` | Optional | Comma-separated synonym list for the context (default `cancer,tumor,carcinoma,sarcoma,lymphoma,leukemia`) | — |
+| `EXTRACTION_MODEL` | Optional | Model for per-source extraction (default `claude-opus-4-8`) | — |
+| `MERGE_MODEL` | Optional | Model for multi-source merge (default `claude-sonnet-4-6`) | — |
+| `ENABLE_CELLXGENE` | Optional | Toggle the CellxGene Census single-cell step (default `true`) | — |
+| `CENSUS_VERSION` | Optional | Pinned CellxGene Census release for reproducibility (default `2024-07-01`) | — |
+| `CENSUS_TISSUE` | Optional | `tissue_general` to query for single-cell expression (default `lung`) | — |
+| `CENSUS_MIN_CELLS` | Optional | Drop cell types with fewer cells than this (default `50`) | — |
+| `CENSUS_CACHE_DIR` | Optional | Where per-(gene, tissue) Census results are cached (default `refs/census_cache/`) | — |
 | `LOG_LEVEL` | Optional | Logging verbosity (default `INFO`) | — |
 
 ### Disease context
@@ -128,6 +158,23 @@ association counts toward `disease_score` when any term matches its name). To re
 pipeline at, say, fibrosis, set `DISEASE_CONTEXT=fibrosis` and
 `DISEASE_TERMS=fibrosis,fibrotic,scarring` — no code changes. This replaces the old
 single-term `DISEASE_FILTER` variable.
+
+### Single-cell grounding (CellxGene Census)
+
+When `ENABLE_CELLXGENE=true`, each gene is also queried against the
+[CellxGene Census](https://chanzuckerberg.github.io/cellxgene-census/) (`cellxgene-census`,
+`tiledbsoma`). For the configured `CENSUS_TISSUE` it computes the mean expression per
+`cell_type` (cell types below `CENSUS_MIN_CELLS` are dropped), attaches the result as
+`cellxgene_expression`, and unions the top 5 cell types into `cellular_states` with a
+`CellxGene: ` prefix so measured states are distinguishable from LLM-extracted ones. Results
+are cached to `CENSUS_CACHE_DIR/{gene}_{tissue}.json`.
+
+> **First-run cost.** The Census is an S3-backed dataset; a single tissue query scans
+> millions of cells and can take **10–20 minutes per uncached gene** (e.g. a lung query
+> touches ~3.7M cells). Results are cached per (gene, tissue), so subsequent runs return in
+> milliseconds. Set `ENABLE_CELLXGENE=false` to skip the step entirely. Note that
+> `cellxgene-census`/`anndata` currently require `pandas < 3`, so installing them pins pandas
+> to the 2.x line.
 
 ## Repository Layout
 
@@ -143,7 +190,8 @@ bio-annotation-pipeline/
 ├── refs/
 │   ├── reactome_pathways.txt   ← canonical Reactome pathway names (one per line)
 │   ├── uniprot_surface.txt     ← surface proteome gene list (optional filter)
-│   └── gtex_median_tpm.gct.gz  ← GTEx v8 median-TPM table (auto-downloaded, cached)
+│   ├── gtex_median_tpm.gct.gz  ← GTEx v8 median-TPM table (auto-downloaded, cached)
+│   └── census_cache/           ← per-(gene, tissue) CellxGene results (git-ignored)
 │
 ├── src/
 │   ├── fetchers/
@@ -151,7 +199,8 @@ bio-annotation-pipeline/
 │   │   ├── uniprot.py          ← UniProt REST API fetcher
 │   │   ├── opentargets.py      ← OpenTargets GraphQL fetcher
 │   │   ├── reactome.py         ← Reactome pathway fetcher
-│   │   └── string_db.py        ← STRING PPI interaction-partner fetcher
+│   │   ├── string_db.py        ← STRING PPI interaction-partner fetcher
+│   │   └── cellxgene.py        ← CellxGene Census single-cell expression fetcher
 │   ├── filters/
 │   │   └── gtex_safety.py      ← GTEx normal-tissue expression safety filter
 │   ├── extractor.py            ← Anthropic API tool-use extraction core
@@ -189,17 +238,28 @@ All outputs land under `outputs/` and are regenerated on each run.
   `functions`, `cellular_states`, `pathways` (non-canonical names prefixed
   `NON-CANONICAL: `), `disease_associations` (each with `role` and `evidence_strength`),
   `interactors`, `druggability_notes`, `confidence`, `source_count`, `source_pmids`, and
-  `merged_at`.
+  `merged_at`. When the enrichment steps run, records also carry `string_interactors`,
+  `safety_assessment` (GTEx), and `cellxgene_expression` (`tissue`, `census_version`, the
+  top 10 `{cell_type, mean_expr}` entries, and `cell_type_count`); the top measured cell
+  types also appear in `cellular_states` with a `CellxGene: ` prefix.
 
 - **`outputs/prioritized_targets.tsv`** — the ranked target table, one row per gene sorted
   by `composite` descending. Columns: `gene`, `composite`, `betweenness`, `degree`,
-  `disease_score`, `druggability_bonus`, `confidence`, `safety_flag`,
+  `disease_score`, `druggability_bonus`, `cellxgene_score`, `confidence`, `safety_flag`,
   `safety_penalty_applied`, `high_expression_tissues`, `max_tpm`, `pathways`,
   `disease_associations` (list/dict fields flattened to pipe-separated strings). The
-  `composite` score combines network centrality, disease relevance, and druggability, scaled
-  by extraction confidence; targets flagged by the GTEx safety filter are then scaled by an
-  additional `0.75` penalty (`safety_penalty_applied=True`), deprioritizing rather than
-  eliminating them.
+  composite is:
+
+  ```
+  composite = (0.25·betweenness + 0.15·degree + 0.35·min(disease_score, 1.0)
+               + 0.10·druggability_bonus + 0.15·cellxgene_score)
+              × confidence × safety_penalty
+  ```
+
+  `cellxgene_score` is `1.0` for genes with measured expression in ≥3 cell types, `0.5` for
+  ≥1, else `0.0`. `safety_penalty` is `0.75` for GTEx-flagged targets and `1.0` otherwise
+  (`safety_penalty_applied` records which). `disease_score` is capped at `1.0` inside the
+  composite, though the raw uncapped value is still reported in its own column.
 
 - **`outputs/target_network.gpickle`** — the NetworkX graph (a `MultiDiGraph`) pickled to
   disk. It holds the 5 (or however many) target nodes (`node_type="target"`, carrying the
@@ -251,7 +311,7 @@ After a pipeline run has produced `outputs/target_network.gpickle` and
 python visualize_network.py
 ```
 
-This reads existing outputs only (no pipeline rerun) and writes three PNGs to
+This reads existing outputs only (no pipeline rerun) and writes four PNGs to
 `outputs/plots/`:
 
 - **`target_network.png`** — the target graph with nodes colored and sized by composite
@@ -262,10 +322,13 @@ This reads existing outputs only (no pipeline rerun) and writes three PNGs to
   network_score (betweenness + degree), and composite_score on a shared 0–1 scale.
 - **`pathway_heatmap.png`** — a genes × canonical-pathways presence matrix
   (1 = gene has pathway). Non-canonical pathway names are excluded.
+- **`cellxgene_expression.png`** — per-gene horizontal bars of the top 5 cell types by
+  mean single-cell expression (from `cellxgene_expression`). Only genes with Census data are
+  plotted; a placeholder is emitted if none have it.
 
 ## Extension Points
 
-Two enrichment layers are now **implemented**:
+Three enrichment layers are now **implemented**:
 
 - **STRING PPI enrichment** (`src/fetchers/string_db.py`) — see the Architecture section and
   the `string_interaction` edges in `outputs/target_network.gpickle`.
@@ -273,16 +336,18 @@ Two enrichment layers are now **implemented**:
   sensitive normal tissues (>10 TPM in ≥3 tissues) and applies a 0.75 composite penalty in
   `network.py`. The GTEx v8 median-TPM table is auto-downloaded and cached at
   `refs/gtex_median_tpm.gct.gz` on first use.
+- **CellxGene Census single-cell grounding** (`src/fetchers/cellxgene.py`) — mean
+  per-cell-type expression per gene in the configured tissue, grounding `cellular_states` and
+  feeding the `cellxgene_score` term in the composite. See *Single-cell grounding* above.
 
 The following extensions are still planned:
 
-- **CellxGene Census** — `src/fetchers/cellxgene.py` fetching mean expression per cell type
-  for each gene (e.g. in human lung tissue) to ground the `cellular_states` field.
 - **Cytoscape export** — a `network.py` `export_cytoscape_json(G, path)` helper using
   `nx.cytoscape_data(G)` for interactive exploration.
-- **Batch-mode parity** — `batch_pipeline.py` does not yet attach STRING partners or GTEx
-  safety assessments to records, so batch-built networks currently lack those edges and
-  penalties.
+- **Batch-mode parity** — `batch_pipeline.py` now reads `EXTRACTION_MODEL` and uses the same
+  cached extraction prompt as `pipeline.py`, but it does not yet attach STRING partners, GTEx
+  safety assessments, or CellxGene expression to records, so batch-built networks lack those
+  edges, penalties, and the `cellxgene_score` term.
 
 ## Known Limitations
 
