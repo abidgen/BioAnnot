@@ -42,9 +42,23 @@ EDGE_COLORS = {
     "string_interaction": "steelblue",
 }
 
+# Per-edge-type curvature: parallel edges between the same node pair (e.g. a
+# direct_interaction and a string_interaction between TP53 and BRCA1) are drawn
+# with different curvature so they don't overlap and both stay visible.
+EDGE_CURVATURE = {
+    "pathway_comembership": "arc3,rad=0.0",
+    "direct_interaction": "arc3,rad=-0.2",
+    "string_interaction": "arc3,rad=0.2",
+}
+
 # Node-size range (points^2) mapped across the composite-score range.
 NODE_SIZE_MIN = 600
 NODE_SIZE_MAX = 3000
+
+# Deterministic spring-layout seed (shown in the plot subtitle) and the minimum
+# spacing enforced between nodes after layout to prevent overlap.
+LAYOUT_SEED = 42
+MIN_NODE_DIST = 0.3
 
 
 def load_network(path: str) -> nx.MultiDiGraph:
@@ -78,6 +92,41 @@ def target_subgraph(G: nx.MultiDiGraph) -> nx.MultiDiGraph:
     return G.subgraph(targets).copy()
 
 
+def _enforce_min_distance(
+    pos: dict, min_dist: float = MIN_NODE_DIST, iterations: int = 100
+) -> dict:
+    """Push apart any node pair closer than ``min_dist`` (deterministic).
+
+    Spring layout can leave nodes overlapping on small graphs; this is a simple
+    relaxation pass that nudges too-close pairs apart along their connecting axis
+    and repeats until everything is separated (or ``iterations`` is hit). No
+    randomness, so the result stays reproducible for a given input layout.
+    """
+    keys = list(pos)
+    points = {k: np.asarray(v, dtype=float) for k, v in pos.items()}
+    for _ in range(iterations):
+        moved = False
+        for i in range(len(keys)):
+            for j in range(i + 1, len(keys)):
+                a, b = keys[i], keys[j]
+                delta = points[a] - points[b]
+                dist = float(np.linalg.norm(delta))
+                if dist >= min_dist:
+                    continue
+                if dist < 1e-9:
+                    # Coincident nodes: separate along a fixed axis deterministically.
+                    delta = np.array([1.0, 0.0])
+                    dist = 1.0
+                shift = (min_dist - dist) / 2.0
+                direction = delta / dist
+                points[a] += direction * shift
+                points[b] -= direction * shift
+                moved = True
+        if not moved:
+            break
+    return {k: tuple(v) for k, v in points.items()}
+
+
 def plot_target_network(
     G: nx.MultiDiGraph, scores: pd.DataFrame, out_path: Path
 ) -> None:
@@ -101,17 +150,18 @@ def plot_target_network(
     else:
         sizes = [(NODE_SIZE_MIN + NODE_SIZE_MAX) / 2] * len(nodes)
 
-    pos = nx.spring_layout(G, seed=42, k=1.5)
+    pos = nx.spring_layout(G, seed=LAYOUT_SEED, k=2.5)
+    pos = _enforce_min_distance(pos, min_dist=MIN_NODE_DIST)
 
-    fig, ax = plt.subplots(figsize=(11, 9))
+    fig, ax = plt.subplots(figsize=(14, 10))
 
     nx.draw_networkx_nodes(
         G, pos, nodelist=nodes, node_color=node_colors, node_size=sizes, ax=ax
     )
     nx.draw_networkx_labels(G, pos, font_size=11, font_weight="bold", ax=ax)
 
-    # Draw edges grouped by type so each gets its own color, and collect labels.
-    edge_labels: dict[tuple[str, str], str] = {}
+    # Draw edges grouped by type so each gets its own color. Edge type is conveyed
+    # by color via the legend below; per-edge text labels are omitted as redundant.
     for etype, color in EDGE_COLORS.items():
         edges = [
             (u, v) for u, v, d in G.edges(data=True) if d.get("type") == etype
@@ -125,15 +175,9 @@ def plot_target_network(
             edge_color=color,
             width=2.0,
             alpha=0.8,
-            connectionstyle="arc3,rad=0.08",
+            connectionstyle=EDGE_CURVATURE.get(etype, "arc3,rad=0.1"),
             ax=ax,
         )
-        for u, v in edges:
-            edge_labels[(u, v)] = etype
-
-    nx.draw_networkx_edge_labels(
-        G, pos, edge_labels=edge_labels, font_size=7, font_color="dimgray", ax=ax
-    )
 
     # Legend for edge types.
     legend_handles = [
@@ -154,7 +198,10 @@ def plot_target_network(
     cbar = fig.colorbar(sm, ax=ax, shrink=0.7)
     cbar.set_label("composite score")
 
-    ax.set_title("Target Network — node color/size by composite score")
+    ax.set_title(
+        "Target Network — node color/size by composite score\n"
+        f"(layout seed={LAYOUT_SEED})"
+    )
     ax.axis("off")
     fig.tight_layout()
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
