@@ -398,6 +398,12 @@ def main() -> None:
     print()
     print_summary(G, scores)
 
+    # Also export the network to Cytoscape.js JSON (full + targets-only)
+    # whenever plots are generated.
+    from scripts.export_cytoscape import export_cytoscape
+
+    export_cytoscape(G)
+
 
 if __name__ == "__main__":
     main()
