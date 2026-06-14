@@ -152,7 +152,9 @@ def build_target_network(
     return G
 
 
-def compute_priority_scores(G: nx.Graph, disease_filter: str) -> list[dict[str, Any]]:
+def compute_priority_scores(
+    G: nx.Graph, disease_filter: str | None = None
+) -> list[dict[str, Any]]:
     """Score and rank nodes for target prioritization.
 
     Composite =
@@ -178,8 +180,12 @@ def compute_priority_scores(G: nx.Graph, disease_filter: str) -> list[dict[str, 
     degree = nx.degree_centrality(UG)
 
     # Match a disease if any active disease-context scoring term (or the explicit
-    # filter) appears in it. Scoring terms come from DISEASE_CONTEXT/DISEASE_TERMS.
-    match_terms = load_disease_context()["scoring_terms"] | {disease_filter.lower()}
+    # filter) appears in it. Scoring terms come from DISEASE_CONTEXT/DISEASE_TERMS;
+    # an optional disease_filter adds one more term (skipped when None/empty so an
+    # empty string can't match every disease).
+    match_terms = load_disease_context()["scoring_terms"]
+    if disease_filter:
+        match_terms = match_terms | {disease_filter.lower()}
     strength_weight = {"strong": 1.0, "moderate": 0.5, "weak": 0.2}
 
     scores: list[dict] = []
