@@ -100,6 +100,8 @@ class RunStats:
     genes_failed: int = 0
     genes_cached: int = 0
     genes_remerged: int = 0
+    cache_raw_pruned: int = 0
+    cache_final_pruned: int = 0
     llm_calls: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
@@ -157,6 +159,15 @@ class RunStats:
         mins = int(self.runtime_seconds // 60)
         secs = int(self.runtime_seconds % 60)
 
+        # Cache-prune line is shown only when something was actually pruned, so a
+        # clean run isn't cluttered.
+        prune_rows = []
+        if self.cache_raw_pruned or self.cache_final_pruned:
+            prune_rows = [_row(
+                f"   Cache pruned: {self.cache_raw_pruned} raw, "
+                f"{self.cache_final_pruned} final"
+            )]
+
         lines = [
             "",
             _divider("╔", "╗"),
@@ -166,6 +177,7 @@ class RunStats:
             _row(f"   Total:      {self.genes_total:<4}  Succeeded: {self.genes_succeeded:<4}"),
             _row(f"   Failed:     {self.genes_failed:<4}  Cached:    {self.genes_cached:<4}"),
             _row(f"   Remerged:   {self.genes_remerged:<4} (raw-cache, no fetch/extract)"),
+            *prune_rows,
             _divider(),
             _row(" Pathway Quality"),
             _row(f"   NON-CANONICAL: {self.noncanonical_total}/{total_pathways} ({nc_pct:.1f}%)"),
@@ -535,6 +547,46 @@ def write_raw_cache(
     log.info("Gene %s: raw extraction cached to %s", gene, path)
 
 
+def prune_stale_cache(
+    config: PipelineConfig, gene_list: list[str]
+) -> tuple[int, int]:
+    """Delete cache files whose keys no longer match the current config.
+
+    Each synonym/config change writes a new-key file without removing the old
+    one, so ``outputs/cache/`` accumulates files that will never be read again.
+    For every gene this keeps only the file matching the current key in each
+    layer (``extract_key`` for ``raw/``, ``full_key`` for ``final/``) and deletes
+    the rest, matching files by the ``{gene}_`` filename prefix. Returns
+    ``(raw_pruned, final_pruned)``. A no-op (returns ``(0, 0)``) when caching or
+    pruning is disabled.
+    """
+    if not config.enable_cache or not config.prune_cache:
+        return (0, 0)
+
+    raw_dir = Path(config.cache_dir) / RAW_CACHE_SUBDIR
+    final_dir = Path(config.cache_dir) / FINAL_CACHE_SUBDIR
+    raw_pruned = final_pruned = 0
+
+    for gene in gene_list:
+        current_raw = _raw_cache_path(gene, config).name
+        if raw_dir.is_dir():
+            for f in raw_dir.glob(f"{gene}_*.json"):
+                if f.name != current_raw:
+                    log.debug("Pruning stale raw cache file: %s", f.name)
+                    f.unlink()
+                    raw_pruned += 1
+
+        current_final = _final_cache_path(gene, config).name
+        if final_dir.is_dir():
+            for f in final_dir.glob(f"{gene}_*.json"):
+                if f.name != current_final:
+                    log.debug("Pruning stale final cache file: %s", f.name)
+                    f.unlink()
+                    final_pruned += 1
+
+    return raw_pruned, final_pruned
+
+
 async def run_gene(
     gene: str, config: PipelineConfig, stats: RunStats
 ) -> dict | None:
@@ -573,7 +625,9 @@ async def run_gene(
             gene,
         )
         stats.genes_remerged += 1
+        full_chain = False
     else:
+        full_chain = True
         fetched = await run_fetch_stage(gene, config)
         extractions, extract_usages = await run_extract_stage(gene, fetched, config)
         for usage in extract_usages:
@@ -596,6 +650,13 @@ async def run_gene(
         stats.add_usage(merge_usage)
 
     enriched = await run_enrich_stage(gene, merged, config)
+
+    # Count a "success" only for a gene that ran the full fetch+extract+merge+
+    # enrich chain (both cache layers cold/bypassed). Cache hits (genes_cached)
+    # and re-merges (genes_remerged) are tracked separately, so the outcome
+    # buckets stay disjoint: Total = Succeeded + Cached + Remerged + Failed.
+    if full_chain:
+        stats.genes_succeeded += 1
 
     # Append the merged record to the run's annotations log, then cache it.
     with open(ANNOTATIONS_JSONL, "a", encoding="utf-8") as f:
@@ -701,9 +762,11 @@ async def main() -> None:
             stats.genes_failed += 1
         elif result:
             # Strip the progress-bar cache marker so it never reaches output.
+            # genes_succeeded is incremented inside run_gene (full-chain only);
+            # cached/remerged genes are tracked by their own counters, so this
+            # loop must NOT increment it again (keeps the buckets disjoint).
             result.pop("_from_cache", None)
             final_annotations[gene] = result
-            stats.genes_succeeded += 1
     if failed:
         log.warning("Failed genes (excluded from output): %s", failed)
 
@@ -720,6 +783,20 @@ async def main() -> None:
     scores = compute_priority_scores(G, config.disease_context)
     save_prioritized_tsv(scores, "outputs/prioritized_targets.tsv")
     log.info("Top 5 targets: %s", [s["gene"] for s in scores[:5]])
+
+    # Prune stale cache files (old keys left by prior synonym/config changes) so
+    # the cache doesn't grow unbounded. Skipped on FORCE_RERUN (the whole cache is
+    # being refreshed anyway). Runs BEFORE AUTO_UPDATE_SYNONYMS: that rewrite would
+    # shift full_key, which must not retroactively mark this run's just-written
+    # final files as stale and delete them.
+    if not config.force_rerun:
+        raw_pruned, final_pruned = prune_stale_cache(config, genes)
+        stats.cache_raw_pruned = raw_pruned
+        stats.cache_final_pruned = final_pruned
+        if raw_pruned or final_pruned:
+            log.info(
+                "Pruned stale cache: %d raw, %d final", raw_pruned, final_pruned
+            )
 
     # Optionally refresh the pathway synonym map from this run's NON-CANONICAL
     # names, so the next run's fuzzy canonicalization picks them up.

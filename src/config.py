@@ -114,6 +114,13 @@ class PipelineConfig:
     cache_dir: str = field(
         default_factory=lambda: os.getenv("CACHE_DIR", "outputs/cache/")
     )
+    # Prune stale cache files (keys no longer matching the current config) after a
+    # successful run. Independent of enable_cache so pruning can be turned off
+    # without disabling the cache itself.
+    prune_cache: bool = field(
+        default_factory=lambda:
+        os.getenv("PRUNE_CACHE", "true").lower() == "true"
+    )
     # Force a fresh run: bypass BOTH cache layers (raw + final) and recompute the
     # whole chain, rewriting both caches.
     force_rerun: bool = field(

@@ -166,6 +166,7 @@ Fill these into your `.env` file (never commit it — it is git-ignored):
 | `CACHE_DIR` | Optional | Cache root; holds `raw/` (extractions) and `final/` (enriched records) (default `outputs/cache/`) | — |
 | `FORCE_RERUN` | Optional | Bypass **both** cache layers and recompute the whole chain; still rewrites both (default `false`) | — |
 | `FORCE_REMERGE` | Optional | Bypass the **final** layer only; replay merge + enrich from the raw cache (skips fetch + extract — merge model still runs for multi-source genes). Forces that replay even when nothing changed — synonym/reference edits already trigger it automatically via `full_key` (default `false`) | — |
+| `PRUNE_CACHE` | Optional | After a successful run, delete cache files whose keys no longer match the current config (old entries from prior synonym/config changes). Disable to keep stale files without disabling the cache. Skipped under `FORCE_RERUN` (default `true`) | — |
 | `FUZZY_THRESHOLD` | Optional | Min rapidfuzz score to accept a fuzzy canonical pathway match (default `85`) | — |
 | `AUTO_UPDATE_SYNONYMS` | Optional | After a run, refresh `refs/pathway_synonyms.json` from this run's NON-CANONICAL names (default `false`) | — |
 | `SYNONYM_MODEL` | Optional | Model the synonym builder uses for ambiguous names (default `claude-sonnet-4-6`) | — |

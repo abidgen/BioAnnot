@@ -72,6 +72,7 @@ async def test_final_cache_hit_short_circuits(monkeypatch, config, stats):
     assert result["_from_cache"] is True
     assert stats.genes_cached == 1
     assert stats.genes_remerged == 0
+    assert stats.genes_succeeded == 0  # a cache hit is NOT a success (disjoint)
     # A final-cache hit must not even consult the raw layer or any stage.
     read_raw.assert_not_called()
     fetch.assert_not_awaited()
@@ -99,6 +100,7 @@ async def test_raw_cache_hit_replays_merge_enrich(monkeypatch, config, stats, tm
     assert result == {"gene_symbol": "TP53", "pathways": []}
     assert stats.genes_remerged == 1
     assert stats.genes_cached == 0
+    assert stats.genes_succeeded == 0  # a remerge is NOT a success (disjoint)
     # Zero fetch/extract API work, and the raw cache is left untouched…
     fetch.assert_not_awaited()
     extract.assert_not_awaited()
@@ -125,6 +127,7 @@ async def test_full_miss_runs_whole_chain(monkeypatch, config, stats, tmp_path):
     assert result == {"gene_symbol": "TP53", "pathways": []}
     assert stats.genes_cached == 0
     assert stats.genes_remerged == 0
+    assert stats.genes_succeeded == 1  # full-chain completion IS the success
     # The whole chain runs, the raw cache is written, then the final cache.
     fetch.assert_awaited_once()
     extract.assert_awaited_once()
@@ -152,5 +155,9 @@ async def test_no_high_confidence_source_returns_none(monkeypatch, config, stats
     result = await run_gene("TP53", config, stats)
 
     assert result is None
+    # A skipped gene (no source cleared the gate) counts in NO bucket.
+    assert stats.genes_succeeded == 0
+    assert stats.genes_cached == 0
+    assert stats.genes_remerged == 0
     write_raw.assert_called_once()   # empty extractions are still cached
     write_final.assert_not_called()  # no final record to cache

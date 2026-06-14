@@ -22,6 +22,9 @@ from pipeline import (  # noqa: E402
     write_cache,
     read_raw_cache,
     write_raw_cache,
+    prune_stale_cache,
+    _raw_cache_path,
+    _final_cache_path,
 )
 _os.environ.clear()
 _os.environ.update(_ENV_SNAPSHOT)
@@ -229,3 +232,71 @@ def test_force_rerun_bypasses_both_layers(tmp_path):
     c.force_rerun = True
     assert read_cache("TP53", c) is None
     assert read_raw_cache("TP53", c) is None
+
+
+# --- prune_stale_cache: delete old-key files, keep current/other-gene files ---
+
+def _seed_current(gene, c):
+    """Write the current-key raw + final files for a gene; return their names."""
+    write_raw_cache(gene, c, [{"a": 1}])
+    write_cache(gene, c, {"final": True})
+    return _raw_cache_path(gene, c).name, _final_cache_path(gene, c).name
+
+def test_prune_deletes_stale_keeps_current(tmp_path):
+    c = _config(cache_dir=str(tmp_path))
+    raw, final = tmp_path / "raw", tmp_path / "final"
+    cur_raw, cur_final = _seed_current("TP53", c)
+    # Stale files (keys that don't match the current ones).
+    (raw / "TP53_staaaaaaaaaa.json").write_text("{}")
+    (final / "TP53_stbbbbbbbbbb.json").write_text("{}")
+
+    raw_pruned, final_pruned = prune_stale_cache(c, ["TP53"])
+
+    assert (raw_pruned, final_pruned) == (1, 1)
+    assert (raw / cur_raw).exists()                       # current kept
+    assert (final / cur_final).exists()
+    assert not (raw / "TP53_staaaaaaaaaa.json").exists()  # stale deleted
+    assert not (final / "TP53_stbbbbbbbbbb.json").exists()
+
+def test_prune_leaves_other_genes_untouched(tmp_path):
+    c = _config(cache_dir=str(tmp_path))
+    raw, final = tmp_path / "raw", tmp_path / "final"
+    raw.mkdir(parents=True); final.mkdir(parents=True)
+    # Files for a gene NOT in the prune list must survive (even with stale keys).
+    (raw / "BRCA1_xxxxxxxxxxxx.json").write_text("{}")
+    (final / "BRCA1_yyyyyyyyyyyy.json").write_text("{}")
+
+    raw_pruned, final_pruned = prune_stale_cache(c, ["TP53"])
+
+    assert (raw_pruned, final_pruned) == (0, 0)
+    assert (raw / "BRCA1_xxxxxxxxxxxx.json").exists()
+    assert (final / "BRCA1_yyyyyyyyyyyy.json").exists()
+
+def test_prune_respects_prune_cache_false(tmp_path):
+    c = _config(cache_dir=str(tmp_path), prune_cache=False)
+    raw, final = tmp_path / "raw", tmp_path / "final"
+    raw.mkdir(parents=True); final.mkdir(parents=True)
+    (raw / "TP53_stale0000000.json").write_text("{}")
+    (final / "TP53_stale1111111.json").write_text("{}")
+
+    assert prune_stale_cache(c, ["TP53"]) == (0, 0)
+    assert (raw / "TP53_stale0000000.json").exists()
+    assert (final / "TP53_stale1111111.json").exists()
+
+def test_prune_noop_when_cache_disabled(tmp_path):
+    c = _config(cache_dir=str(tmp_path), enable_cache=False)
+    raw = tmp_path / "raw"; raw.mkdir(parents=True)
+    (raw / "TP53_stale0000000.json").write_text("{}")
+    assert prune_stale_cache(c, ["TP53"]) == (0, 0)
+    assert (raw / "TP53_stale0000000.json").exists()
+
+def test_prune_returns_correct_counts(tmp_path):
+    c = _config(cache_dir=str(tmp_path))
+    raw, final = tmp_path / "raw", tmp_path / "final"
+    _seed_current("TP53", c)  # current files (must be kept)
+    for k in ("aaaaa", "bbbbb", "ccccc"):
+        (raw / f"TP53_{k}.json").write_text("{}")    # 3 stale raw
+    for k in ("ddddd", "eeeee"):
+        (final / f"TP53_{k}.json").write_text("{}")  # 2 stale final
+
+    assert prune_stale_cache(c, ["TP53"]) == (3, 2)
