@@ -165,7 +165,7 @@ def main() -> None:
 
     async def _merge_all() -> None:
         for gene, sources in raw_annotations.items():
-            merged = await merge_annotations(gene, sources, reactome_ref)
+            merged, _usage = await merge_annotations(gene, sources, reactome_ref)
             final_annotations[gene] = merged
             with open(
                 Path("outputs/raw") / f"{gene}_raw.json", "w", encoding="utf-8"

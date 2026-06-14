@@ -168,11 +168,14 @@ def _union_source_pmids(source_annotations: list[dict]) -> list[str]:
 
 async def merge_annotations(
     gene: str, source_annotations: list[dict[str, Any]], reactome_ref: set[str]
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
     """Reconcile per-source annotation records for a gene into one merged record.
 
-    With a single source, returns it directly (validating pathway names). With
-    multiple sources, calls the merge model with the annotate_target tool forced.
+    With a single source, returns it directly (validating pathway names) with no
+    LLM call. With multiple sources, calls the merge model with the
+    annotate_target tool forced. Returns ``(merged, usage)`` where ``usage`` is
+    the merge call's token-usage dict, or ``None`` for the single-source path
+    (no LLM call was made).
     """
     n = len(source_annotations)
 
@@ -184,11 +187,11 @@ async def merge_annotations(
         merged["source_pmids"] = _union_source_pmids(source_annotations)
         merged["source_count"] = 1
         merged["merged_at"] = _utc_now_iso()
-        return merged
+        return merged, None
 
     sources_block = json.dumps(source_annotations, indent=2)
 
-    merged_input, _usage = await call_tool(
+    merged_input, usage = await call_tool(
         model=MERGE_MODEL,
         system_prompt=MERGE_SYSTEM_PROMPT,
         messages=[
@@ -211,4 +214,4 @@ async def merge_annotations(
     merged["source_pmids"] = _union_source_pmids(source_annotations)
     merged["source_count"] = n
     merged["merged_at"] = _utc_now_iso()
-    return merged
+    return merged, usage

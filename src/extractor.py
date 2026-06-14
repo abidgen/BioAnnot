@@ -209,18 +209,19 @@ def _truncate_words(text: str, max_words: int = MAX_INPUT_WORDS) -> str:
 
 async def extract_from_text(
     gene: str, text: str, source_pmids: list[str]
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Extract structured annotations for a gene from free text.
 
     Calls Claude via :func:`src.llm.call_tool` with the annotate_target tool
     forced (prompt caching + token logging handled there), then attaches
-    validated source PMIDs to the returned annotation.
+    validated source PMIDs to the returned annotation. Returns
+    ``(annotation, usage)`` where ``usage`` is the call's token-usage dict.
     """
     truncated = _truncate_words(text)
 
     user_content = f"Gene: {gene}\n\n{truncated}"
 
-    annotation_input, _usage = await call_tool(
+    annotation_input, usage = await call_tool(
         model=EXTRACTION_MODEL,
         system_prompt=build_system_prompt(),
         messages=[{"role": "user", "content": user_content}],
@@ -233,7 +234,7 @@ async def extract_from_text(
     annotation = dict(annotation_input)
     # Only pass through validated PMIDs — never invent or forward unvalidated IDs.
     annotation["source_pmids"] = validate_pmids(source_pmids)
-    return annotation
+    return annotation, usage
 
 
 def _format_uniprot_text(uniprot_data: dict[str, Any]) -> str:
@@ -259,8 +260,13 @@ def _format_uniprot_text(uniprot_data: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-async def extract_from_uniprot(gene: str, uniprot_data: dict[str, Any]) -> dict[str, Any]:
-    """Format a UniProt record and extract annotations from it (no PMIDs)."""
+async def extract_from_uniprot(
+    gene: str, uniprot_data: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Format a UniProt record and extract annotations from it (no PMIDs).
+
+    Returns ``(annotation, usage)``.
+    """
     text = _format_uniprot_text(uniprot_data)
     return await extract_from_text(gene, text, source_pmids=[])
 
@@ -293,7 +299,12 @@ def _format_opentargets_text(ot_data: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-async def extract_from_opentargets(gene: str, ot_data: dict[str, Any]) -> dict[str, Any]:
-    """Format an OpenTargets record and extract annotations from it (no PMIDs)."""
+async def extract_from_opentargets(
+    gene: str, ot_data: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Format an OpenTargets record and extract annotations from it (no PMIDs).
+
+    Returns ``(annotation, usage)``.
+    """
     text = _format_opentargets_text(ot_data)
     return await extract_from_text(gene, text, source_pmids=[])
