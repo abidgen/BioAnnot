@@ -15,6 +15,7 @@ Run:  python pipeline.py
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import subprocess
@@ -187,12 +188,62 @@ async def run_enrich_stage(
     return merged
 
 
+def make_cache_key(gene: str, config: PipelineConfig) -> str:
+    """Content-addressed cache key for a gene's result.
+
+    The key digests the inputs that determine the output — gene, disease
+    context, the extraction/merge models, the PubMed depth, and the CellxGene
+    tissue/version — so changing any of them invalidates the cache for that gene.
+    """
+    components = "|".join([
+        gene,
+        config.disease_context,
+        config.extraction_model,
+        config.merge_model,
+        str(config.pubmed_max_results),
+        config.census_tissue,
+        config.census_version,
+    ])
+    return hashlib.md5(components.encode()).hexdigest()[:12]
+
+
+def read_cache(gene: str, config: PipelineConfig) -> dict | None:
+    """Return a gene's cached result, or None on miss / cache disabled / force.
+
+    Honors ENABLE_CACHE (off → no cache) and FORCE_RERUN (on → ignore existing
+    cache so all stages recompute; the fresh result is still written back).
+    """
+    if not config.enable_cache or config.force_rerun:
+        return None
+    path = Path(config.cache_dir) / f"{gene}_{make_cache_key(gene, config)}.json"
+    if path.exists():
+        log.info("Gene %s: cache hit → skipping all stages", gene)
+        return json.loads(path.read_text())
+    return None
+
+
+def write_cache(gene: str, config: PipelineConfig, result: dict) -> None:
+    """Persist a gene's result to the resume cache (no-op if caching disabled)."""
+    if not config.enable_cache:
+        return
+    Path(config.cache_dir).mkdir(parents=True, exist_ok=True)
+    path = Path(config.cache_dir) / f"{gene}_{make_cache_key(gene, config)}.json"
+    path.write_text(json.dumps(result, indent=2, default=str))
+    log.info("Gene %s: cached to %s", gene, path)
+
+
 async def run_gene(gene: str, config: PipelineConfig) -> dict | None:
     """Run all stages for a single gene.
 
     Returns the enriched annotation, or ``None`` when no high-confidence source
-    survived the merge gate.
+    survived the merge gate. On a resume-cache hit, returns the cached result
+    without running any stage.
     """
+    # Check the on-disk resume cache first.
+    cached = read_cache(gene, config)
+    if cached is not None:
+        return cached
+
     fetched = await run_fetch_stage(gene, config)
     extractions = await run_extract_stage(gene, fetched, config)
     merged = await run_merge_stage(gene, extractions, config)
@@ -200,9 +251,10 @@ async def run_gene(gene: str, config: PipelineConfig) -> dict | None:
         return None
     enriched = await run_enrich_stage(gene, merged, config)
 
-    # Append the merged record to the run's annotations log.
+    # Append the merged record to the run's annotations log, then cache it.
     with open(ANNOTATIONS_JSONL, "a", encoding="utf-8") as f:
         f.write(json.dumps(enriched) + "\n")
+    write_cache(gene, config, enriched)
     return enriched
 
 

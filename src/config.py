@@ -106,6 +106,20 @@ class PipelineConfig:
     layout_k: float = field(
         default_factory=lambda: float(os.getenv("LAYOUT_K", "2.5")))
 
+    # On-disk resume cache (skip a gene's stages if a prior run cached it)
+    enable_cache: bool = field(
+        default_factory=lambda:
+        os.getenv("ENABLE_CACHE", "true").lower() == "true"
+    )
+    cache_dir: str = field(
+        default_factory=lambda: os.getenv("CACHE_DIR", "outputs/cache/")
+    )
+    # Force a fresh run: bypass cache reads (still writes/refreshes the cache).
+    force_rerun: bool = field(
+        default_factory=lambda:
+        os.getenv("FORCE_RERUN", "false").lower() == "true"
+    )
+
     def __post_init__(self):
         total = (self.weight_betweenness + self.weight_degree +
                  self.weight_disease + self.weight_druggability +

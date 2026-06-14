@@ -1,8 +1,12 @@
 {
   "BRCA1 and BRCA2: Role in Genome Stability": null,
+  "DNA Damage Response": "DNA Double Strand Break Response",
+  "Epithelial to Mesenchymal Transition": "TGF-beta receptor signaling in EMT (epithelial to mesenchymal transition)",
   "Epithelial to Mesenchymal Transition (EMT)": "TGF-beta receptor signaling in EMT (epithelial to mesenchymal transition)",
+  "Hedgehog signaling pathway": "Signaling by Hedgehog",
   "JAK-STAT signaling pathway": null,
   "NF-kB Signaling": null,
+  "PARP inhibitor response \u2014 Homologous Recombination Deficiency": "HDR through Homologous Recombination (HRR) or Single Strand Annealing (SSA)",
   "PI3K/AKT Signaling": "PI3K/AKT Signaling in Cancer",
   "RAS signaling pathway": "Signaling by RAS mutants",
   "Signal transduction by p53 class mediator": null,
@@ -10,5 +14,6 @@
   "Signaling by BRCA1 mutants": null,
   "Signaling by KRAS in Cancer": null,
   "Signaling by NF-kappa-B": "Regulation of NF-kappa B signaling",
-  "Transcriptional activation of cell cycle inhibitor p21": "Transcriptional  activation of  cell cycle inhibitor p21"
+  "Transcriptional activation of cell cycle inhibitor p21": "Transcriptional  activation of  cell cycle inhibitor p21",
+  "mRNA Translation": "Translation"
 }

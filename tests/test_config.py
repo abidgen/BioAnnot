@@ -47,3 +47,8 @@ def test_config_enable_cellxgene_false(monkeypatch):
     monkeypatch.setenv("ENABLE_CELLXGENE", "false")
     config = PipelineConfig()
     assert config.enable_cellxgene == False
+
+def test_config_cache_defaults():
+    config = PipelineConfig()
+    assert config.enable_cache == True
+    assert config.cache_dir == "outputs/cache/"
