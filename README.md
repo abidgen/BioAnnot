@@ -22,8 +22,11 @@ lives in [`src/llm.py`](src/llm.py); and all pathway canonicalization (exact / s
 fuzzy matching) is shared from [`src/pathways.py`](src/pathways.py). The orchestrator adds
 an on-disk **resume cache** (re-runs skip genes already computed under the same inputs), a
 **progress bar**, and an end-of-run **report** summarizing gene outcomes, pathway quality,
-LLM token usage, estimated cost, and runtime. A `tests/` suite (62 tests) covers config,
+LLM token usage, estimated cost, and runtime. A `tests/` suite (68 tests) covers config,
 caching, pathway matching, retry, network scoring, and the run-stats accounting.
+
+> For the full per-stage logic, the composite-score model, the cache internals, and the
+> **caveats** that affect how to read the outputs, see [`docs/PIPELINE.md`](docs/PIPELINE.md).
 
 ## Architecture
 
@@ -363,7 +366,7 @@ bio-annotation-pipeline/
 │   ├── build_synonyms.py       ← build/update refs/pathway_synonyms.json
 │   └── export_cytoscape.py     ← export network to Cytoscape.js JSON + CX2
 │
-├── tests/                      ← pytest suite (62 tests)
+├── tests/                      ← pytest suite (68 tests)
 │
 ├── pipeline.py                 ← main orchestrator (run this)
 ├── batch_pipeline.py           ← Anthropic Batch API variant for 50+ genes
@@ -629,7 +632,7 @@ shows the current gene and whether it was computed or served from the resume cac
 ## Tests
 
 ```bash
-pytest                      # 62 tests
+pytest                      # 68 tests
 ```
 
 The suite covers the config dataclass and weight validation, the two-layer resume cache
