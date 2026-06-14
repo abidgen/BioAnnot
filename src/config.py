@@ -114,10 +114,21 @@ class PipelineConfig:
     cache_dir: str = field(
         default_factory=lambda: os.getenv("CACHE_DIR", "outputs/cache/")
     )
-    # Force a fresh run: bypass cache reads (still writes/refreshes the cache).
+    # Force a fresh run: bypass BOTH cache layers (raw + final) and recompute the
+    # whole chain, rewriting both caches.
     force_rerun: bool = field(
         default_factory=lambda:
         os.getenv("FORCE_RERUN", "false").lower() == "true"
+    )
+    # Force a re-merge: bypass the final cache only, replay merge + enrich from the
+    # raw extraction cache, and rewrite the final cache. Skips fetch + extract (no
+    # fetch/extract API calls); the merge model still runs for multi-source genes,
+    # so this is free only for single-source genes and otherwise costs merge tokens
+    # — far cheaper than a full rerun. Ignored when force_rerun is set (that
+    # bypasses everything).
+    force_remerge: bool = field(
+        default_factory=lambda:
+        os.getenv("FORCE_REMERGE", "false").lower() == "true"
     )
 
     def __post_init__(self):

@@ -16,6 +16,15 @@ bypass the LLM — STRING protein interactions, a GTEx normal-tissue safety flag
 CellxGene Census single-cell expression — which feed both the graph and the prioritization
 composite.
 
+Configuration is centralized in a single dataclass ([`src/config.py`](src/config.py)) that
+reads every environment variable in one place; the shared Anthropic tool-use call pattern
+lives in [`src/llm.py`](src/llm.py); and all pathway canonicalization (exact / synonym /
+fuzzy matching) is shared from [`src/pathways.py`](src/pathways.py). The orchestrator adds
+an on-disk **resume cache** (re-runs skip genes already computed under the same inputs), a
+**progress bar**, and an end-of-run **report** summarizing gene outcomes, pathway quality,
+LLM token usage, estimated cost, and runtime. A `tests/` suite (62 tests) covers config,
+caching, pathway matching, retry, network scoring, and the run-stats accounting.
+
 ## Architecture
 
 ```
@@ -43,8 +52,10 @@ inputs/target_genes.txt
         ▼
 ┌───────────────────────────────────────────────┐
 │  merger.py      (model: MERGE_MODEL, tool use)│
-│   reconcile sources, resolve conflicts,       │
-│   flag non-canonical pathways vs Reactome ref │
+│   reconcile sources, resolve conflicts, then  │
+│   canonicalize pathways via src/pathways.py   │
+│   (exact → synonym map → gene-token-guarded   │
+│   fuzzy); unresolved → NON-CANONICAL: prefix  │
 └───────────────────────────────────────────────┘
         │  one merged annotation per gene
         ▼
@@ -77,8 +88,14 @@ inputs/target_genes.txt
 ```
 
 The orchestrator [`pipeline.py`](pipeline.py) drives this flow with a concurrency limit of
-3 genes at a time. All intermediate results are written to disk under `outputs/` — that
-directory is the single source of truth between stages. STRING is the one fetcher whose
+3 genes at a time (`SEMAPHORE_LIMIT`), per-gene retry on transient transport errors, and
+error isolation so one gene's failure never kills the run. Before running a gene's stages it
+consults a **two-layer resume cache** (`outputs/cache/`): a final-layer hit reuses the whole
+enriched record, while a raw-layer hit replays only merge + enrich from cached extractions —
+so editing the pathway synonym map skips all fetch + extraction calls (the merge model still
+runs for multi-source genes; see [Resume cache](#resume-cache)).
+All intermediate results are written to disk under `outputs/` — that directory is the single
+source of truth between stages. STRING is the one fetcher whose
 output is factual rather than free text, so its PPI partners **bypass the LLM extractor and
 merger** and are attached to each merged record directly, feeding `network.py` as
 `string_interaction` edges (and satellite interactor nodes). Likewise, the GTEx safety
@@ -145,7 +162,22 @@ Fill these into your `.env` file (never commit it — it is git-ignored):
 | `CENSUS_TISSUE` | Optional | `tissue_general` to query for single-cell expression (default `lung`) | — |
 | `CENSUS_MIN_CELLS` | Optional | Drop cell types with fewer cells than this (default `50`) | — |
 | `CENSUS_CACHE_DIR` | Optional | Where per-(gene, tissue) Census results are cached (default `refs/census_cache/`) | — |
+| `ENABLE_CACHE` | Optional | Two-layer on-disk resume cache; re-runs skip already-computed work (default `true`) | — |
+| `CACHE_DIR` | Optional | Cache root; holds `raw/` (extractions) and `final/` (enriched records) (default `outputs/cache/`) | — |
+| `FORCE_RERUN` | Optional | Bypass **both** cache layers and recompute the whole chain; still rewrites both (default `false`) | — |
+| `FORCE_REMERGE` | Optional | Bypass the **final** layer only; replay merge + enrich from the raw cache (skips fetch + extract — merge model still runs for multi-source genes). Forces that replay even when nothing changed — synonym/reference edits already trigger it automatically via `full_key` (default `false`) | — |
+| `FUZZY_THRESHOLD` | Optional | Min rapidfuzz score to accept a fuzzy canonical pathway match (default `85`) | — |
+| `AUTO_UPDATE_SYNONYMS` | Optional | After a run, refresh `refs/pathway_synonyms.json` from this run's NON-CANONICAL names (default `false`) | — |
+| `SYNONYM_MODEL` | Optional | Model the synonym builder uses for ambiguous names (default `claude-sonnet-4-6`) | — |
 | `LOG_LEVEL` | Optional | Logging verbosity (default `INFO`) | — |
+
+Additional tunables (all optional, with sensible defaults) are read by
+[`src/config.py`](src/config.py): `MAX_TOKENS`, `PUBMED_MAX_RESULTS`, `SEMAPHORE_LIMIT`,
+`STRING_MIN_SCORE`, `STRING_LIMIT`, `GTEX_TPM_THRESHOLD`, `GTEX_MIN_TISSUES`, the scoring
+weights (`WEIGHT_BETWEENNESS`, `WEIGHT_DEGREE`, `WEIGHT_DISEASE`, `WEIGHT_DRUGGABILITY`,
+`WEIGHT_CELLXGENE` — validated to sum to `1.0` at startup), `SAFETY_PENALTY`,
+`SYNONYM_CANDIDATES`, and the plot layout (`LAYOUT_SEED`, `LAYOUT_K`). See
+[`env.example`](env.example) for a working starting point.
 
 ### Disease context
 
@@ -176,6 +208,120 @@ are cached to `CENSUS_CACHE_DIR/{gene}_{tissue}.json`.
 > `cellxgene-census`/`anndata` currently require `pandas < 3`, so installing them pins pandas
 > to the 2.x line.
 
+### Pathway canonicalization
+
+The merger no longer only does exact matching against the Reactome reference. Pathway names
+are resolved through [`src/pathways.py`](src/pathways.py) in priority order: (a) **exact**
+normalized match (case-insensitive, with the Reactome `(R-HSA-…)` stable-ID suffix
+stripped); (b) the **synonym map** `refs/pathway_synonyms.json` (informal → canonical); (c)
+**fuzzy** `rapidfuzz` `token_sort_ratio` ≥ `FUZZY_THRESHOLD`, guarded by a *gene-token guard*
+that rejects high-scoring wrong-gene siblings (e.g. "Signaling by BRCA1 mutants" vs
+"Signaling by AMER1 mutants"). Anything that resolves becomes the exact canonical Reactome
+string; anything that doesn't keeps the `NON-CANONICAL: ` prefix.
+
+The synonym map is built offline by [`scripts/build_synonyms.py`](scripts/build_synonyms.py),
+which scans `outputs/final_annotations.json` for NON-CANONICAL names and resolves each with a
+local-first cascade — exact, then fuzzy over the full reference, and only the genuinely
+ambiguous remainder goes to `SYNONYM_MODEL` in a single call (each name with its top
+candidates; the model's choice is validated against the reference before being kept). It is
+incremental (already-mapped names are skipped) and validates every entry, so a lookup can
+only ever yield a real Reactome name. Run it directly, or set `AUTO_UPDATE_SYNONYMS=true` to
+have the pipeline refresh the map after each run so the next run's fuzzy step improves.
+
+```bash
+python scripts/build_synonyms.py
+```
+
+### Resume cache
+
+When `ENABLE_CACHE=true` (default), the pipeline keeps a **two-layer** on-disk cache under
+`CACHE_DIR` (`outputs/cache/`). Splitting the cache means that curating pathway annotations —
+editing the synonym map or the Reactome reference — refreshes the output **without** paying
+for fetch + extraction again.
+
+```
+                              run_gene(gene)
+                                    │
+                  ┌─────────────────▼─────────────────┐
+                  │ Layer 2 — final cache             │
+                  │ outputs/cache/final/{gene}_{full_key}.json
+                  └─────────────────┬─────────────────┘
+                       HIT ◄────────┤────────► MISS
+                  return enriched   │   ┌──────────────────────────────┐
+                  record (no work)  │   │ Layer 1 — raw extraction cache│
+                                    │   │ outputs/cache/raw/{gene}_{extract_key}.json
+                                    │   └──────────┬───────────────────┘
+                                    │     HIT ◄────┤────► MISS
+                                    │  skip fetch  │   fetch + extract (API),
+                                    │  + extract   │   then write raw cache
+                                    │     │        │        │
+                                    │     └───►  merge + enrich  ◄───┘
+                                    │              │
+                                    │      write final cache, return
+```
+
+**Layer 1 — raw extraction cache** (`outputs/cache/raw/{gene}_{extract_key}.json`) holds the
+high-confidence per-source extractions that feed the merge. `extract_key` digests the
+fetch + extract inputs **only**: gene symbol, disease context (which shapes the PubMed query
+and the extractor prompt), extraction model, PubMed depth, and an extraction-prompt version.
+It deliberately **excludes** the synonym map, the Reactome reference, and every merge/enrich
+parameter — so a synonym edit never invalidates it.
+
+**Layer 2 — final enriched cache** (`outputs/cache/final/{gene}_{full_key}.json`) holds the
+final enriched record (unchanged schema). `full_key` is `extract_key` **plus** the merge
+model, the **content hash** of `refs/pathway_synonyms.json` and `refs/reactome_pathways.txt`,
+and the enrich params (CellxGene tissue/version + toggle, STRING thresholds, GTEx
+thresholds). Editing the synonym map or the Reactome reference changes only this key.
+
+| Layer | Path | Key includes | Invalidated by |
+|---|---|---|---|
+| Raw extraction | `cache/raw/{gene}_{extract_key}.json` | gene, disease context, extraction model, PubMed depth, extraction-prompt version | gene/source/disease/extraction-model/prompt change — **not** synonym/reference edits, the confidence threshold, or merge/enrich params |
+| Final enriched | `cache/final/{gene}_{full_key}.json` | `extract_key` + synonym-file hash + Reactome-file hash + confidence threshold + merge model + enrich params | any of the above **or** any synonym/reference/threshold/merge/enrich change |
+
+**Execution order** in `run_gene`: (1) final-cache hit → return the record, no work; (2) else
+raw-cache hit → skip fetch + extract and replay merge + enrich (**no fetch/extract API
+calls**); (3) else run the full chain and write the raw cache. The final cache is always
+written at the end.
+
+**Flags:**
+
+- `ENABLE_CACHE=false` — disable both layers.
+- `FORCE_RERUN=true` — bypass **both** layers; recompute the whole chain (re-fetch,
+  re-extract, re-merge) and rewrite both caches.
+- `FORCE_REMERGE=true` — bypass the **final** layer only; replay merge + enrich from the raw
+  cache and rewrite the final cache. Skips fetch + extraction; the merge model still runs for
+  multi-source genes, so it is free for single-source genes and otherwise costs only merge
+  tokens — far cheaper than a full rerun.
+
+**Curate pathways cheaply.** Because `full_key` includes the synonym-file hash but
+`extract_key` does not, editing `refs/pathway_synonyms.json` (e.g. via
+`scripts/build_synonyms.py`) automatically makes every gene's final cache stale while its raw
+cache stays valid. The next run therefore takes the raw-cache path — replaying merge + enrich
+with the new synonyms and **no fetch or extraction API calls** (the canonicalization that a
+synonym edit changes is local; the merge model only re-runs for multi-source genes, billing
+merge tokens, and single-source genes re-canonicalize for free):
+
+```bash
+# 1. curate the synonym map (local-first; see Pathway canonicalization)
+python scripts/build_synonyms.py
+
+# 2. rerun — synonym edits already invalidate the final layer, so this alone
+#    replays merge + enrich from the raw cache (no fetch/extract; merge tokens only
+#    for multi-source genes). FORCE_REMERGE=true forces the same path even when
+#    nothing changed.
+python pipeline.py
+```
+
+The run report's *Genes* block shows how this resolved: `Remerged` counts genes served from
+the raw cache (merge + enrich rerun, no fetch/extract API calls), `Cached` counts whole-record
+final-cache hits, and the *LLM Usage* `Calls` line reflects only merge calls for the remerged
+genes (the single-source merge path makes no LLM call at all).
+
+> **Migration note.** Caches written before this change were flat files
+> (`outputs/cache/{gene}_{key}.json`). They are not read by the new `raw/` and `final/`
+> layers; the pipeline logs a warning if it finds any and ignores them. They are safe to
+> delete once a full run has repopulated `outputs/cache/raw/` and `outputs/cache/final/`.
+
 ## Repository Layout
 
 ```
@@ -189,11 +335,15 @@ bio-annotation-pipeline/
 │
 ├── refs/
 │   ├── reactome_pathways.txt   ← canonical Reactome pathway names (one per line)
+│   ├── pathway_synonyms.json   ← informal→canonical pathway map (built by script)
 │   ├── uniprot_surface.txt     ← surface proteome gene list (optional filter)
 │   ├── gtex_median_tpm.gct.gz  ← GTEx v8 median-TPM table (auto-downloaded, cached)
 │   └── census_cache/           ← per-(gene, tissue) CellxGene results (git-ignored)
 │
 ├── src/
+│   ├── config.py               ← centralized env-driven config dataclass
+│   ├── llm.py                  ← shared Anthropic forced-tool-use + caching helper
+│   ├── pathways.py             ← shared pathway canonicalization (exact/synonym/fuzzy)
 │   ├── fetchers/
 │   │   ├── pubmed.py           ← PubMed/Entrez abstract fetcher
 │   │   ├── uniprot.py          ← UniProt REST API fetcher
@@ -208,15 +358,25 @@ bio-annotation-pipeline/
 │   ├── network.py              ← NetworkX graph builder + target prioritization scorer
 │   └── utils.py                ← logging, retry decorator, PMID validator
 │
+├── scripts/
+│   ├── build_synonyms.py       ← build/update refs/pathway_synonyms.json
+│   └── export_cytoscape.py     ← export network to Cytoscape.js JSON + CX2
+│
+├── tests/                      ← pytest suite (62 tests)
+│
 ├── pipeline.py                 ← main orchestrator (run this)
 ├── batch_pipeline.py           ← Anthropic Batch API variant for 50+ genes
 ├── visualize_network.py        ← plots from existing outputs (no rerun)
 │
 └── outputs/                    ← auto-created at runtime
-    ├── raw/                    ← per-gene per-source raw extraction JSONs
+    ├── raw/                    ← per-gene per-source raw extraction JSONs (provenance)
+    ├── cache/                  ← two-layer resume cache (git-ignored)
+    │   ├── raw/                ← Layer 1: cached extractions, keyed by extract_key
+    │   └── final/             ← Layer 2: enriched records, keyed by full_key
     ├── annotations.jsonl       ← merged annotation per gene (newline-delimited JSON)
     ├── final_annotations.json  ← full merged dict keyed by gene symbol
     ├── target_network.gpickle  ← NetworkX graph
+    ├── target_network_cytoscape*.json / *.cx2  ← Cytoscape exports (after script)
     ├── prioritized_targets.tsv ← ranked target table
     └── plots/                  ← visualization PNGs (after visualize_network.py)
 ```
@@ -281,7 +441,7 @@ These are enforced automatically by the pipeline:
 |---|---|---|
 | Confidence filter | Drop extractions < 0.65 (`CONFIDENCE_THRESHOLD`) | Log warning, skip source |
 | PMID validation | Only digits, 7–8 chars | Drop invalid, log |
-| Pathway canonicity | Check against Reactome reference set | Prefix with `NON-CANONICAL: ` |
+| Pathway canonicity | Resolve vs Reactome reference: exact → synonym map → gene-token-guarded fuzzy | Map to canonical name; unresolved get `NON-CANONICAL: ` prefix |
 | Source agreement | Pathway needs ≥2 sources unless confidence ≥ 0.85 | Merger rule |
 | Normal-tissue safety | >10 TPM in ≥3 sensitive GTEx tissues | Flag and apply 0.75 composite penalty (deprioritize) |
 | Rate limiting | Max 3 concurrent gene fetches | `asyncio.Semaphore(3)` |
@@ -326,9 +486,47 @@ This reads existing outputs only (no pipeline rerun) and writes four PNGs to
   mean single-cell expression (from `cellxgene_expression`). Only genes with Census data are
   plotted; a placeholder is emitted if none have it.
 
+## Cytoscape Export
+
+[`scripts/export_cytoscape.py`](scripts/export_cytoscape.py) converts an existing
+`outputs/target_network.gpickle` into Cytoscape-importable files (no pipeline rerun):
+
+```bash
+python scripts/export_cytoscape.py
+```
+
+It writes four files — Cytoscape.js JSON and CX2 (for NDEx / Cytoscape), each in a **full**
+variant (all nodes, including STRING satellite interactors) and a **targets-only** variant
+(target nodes and the edges among them, for clean presentation): `target_network_cytoscape.json`,
+`target_network_cytoscape_targets.json`, `target_network_cytoscape.cx2`, and
+`target_network_cytoscape_targets.cx2`. Node/edge attributes are carried through; values CX2
+can't represent natively (nested dicts/lists) are JSON-stringified. The CX2 step needs
+`ndex2`; if it's missing those two files are skipped with a note.
+
+## Run Report
+
+At the end of every `pipeline.py` run a boxed report is logged and printed, summarizing:
+gene outcomes (total / succeeded / failed / **cached** = final-cache hits / **remerged** =
+raw-cache hits whose merge + enrich rerun with no fetch/extract API calls), pathway quality
+(NON-CANONICAL count and percentage), LLM usage (calls, input/output/cache-read tokens, cache
+hit rate), the estimated USD cost, and total runtime. During the run a `tqdm` progress bar
+shows the current gene and whether it was computed or served from the resume cache.
+
+## Tests
+
+```bash
+pytest                      # 62 tests
+```
+
+The suite covers the config dataclass and weight validation, the two-layer resume cache
+(raw/final key scoping, `FORCE_REMERGE`/`FORCE_RERUN` semantics, and `run_gene`'s
+final→raw→full execution order with cached/remerged accounting), pathway canonicalization
+(exact / synonym / fuzzy + the gene-token guard), per-gene retry behavior, network scoring,
+and the run-stats/cost accounting.
+
 ## Extension Points
 
-Three enrichment layers are now **implemented**:
+Four enrichment/output layers are now **implemented**:
 
 - **STRING PPI enrichment** (`src/fetchers/string_db.py`) — see the Architecture section and
   the `string_interaction` edges in `outputs/target_network.gpickle`.
@@ -339,11 +537,11 @@ Three enrichment layers are now **implemented**:
 - **CellxGene Census single-cell grounding** (`src/fetchers/cellxgene.py`) — mean
   per-cell-type expression per gene in the configured tissue, grounding `cellular_states` and
   feeding the `cellxgene_score` term in the composite. See *Single-cell grounding* above.
+- **Cytoscape export** (`scripts/export_cytoscape.py`) — Cytoscape.js JSON and CX2 exports
+  (full + targets-only) via `nx.cytoscape_data(G)`. See *Cytoscape Export* above.
 
-The following extensions are still planned:
+The following extension is still planned:
 
-- **Cytoscape export** — a `network.py` `export_cytoscape_json(G, path)` helper using
-  `nx.cytoscape_data(G)` for interactive exploration.
 - **Batch-mode parity** — `batch_pipeline.py` now reads `EXTRACTION_MODEL` and uses the same
   cached extraction prompt as `pipeline.py`, but it does not yet attach STRING partners, GTEx
   safety assessments, or CellxGene expression to records, so batch-built networks lack those
@@ -356,18 +554,30 @@ The following extensions are still planned:
   slightly different phrasing. Counts (e.g. number of `NON-CANONICAL` flags) and even the
   exact ranking can shift between runs; treat individual runs as samples, not fixed truth.
 
-- **Remaining `NON-CANONICAL` flags are mostly informal signaling names.** After
-  normalization (case-insensitive matching plus stripping Reactome `(R-HSA-…)` stable-ID
-  suffixes), the pathways still flagged are typically informal shorthand the model emits —
-  e.g. `PI3K/AKT/mTOR signaling`, `RAS-RAF-MEK-ERK (MAPK) cascade`, `JAK/STAT signaling` —
-  rather than exact Reactome names. These are genuine non-canonical names, not a matching
-  bug; the gate is working as intended.
+- **Remaining `NON-CANONICAL` flags are mostly informal signaling names.** Canonicalization
+  now goes well beyond exact matching — case-insensitive comparison, Reactome `(R-HSA-…)`
+  stable-ID stripping, a validated synonym map, and gene-token-guarded fuzzy matching (see
+  *Pathway canonicalization*). The pathways still flagged after all that are typically
+  informal shorthand the model emits — e.g. `PI3K/AKT/mTOR signaling`,
+  `RAS-RAF-MEK-ERK (MAPK) cascade`, `JAK/STAT signaling` — with no close Reactome equivalent.
+  These are genuine non-canonical names, not a matching bug; the gate is working as intended.
+  Running `scripts/build_synonyms.py` (or `AUTO_UPDATE_SYNONYMS=true`) over time maps the
+  resolvable ones so later runs flag fewer.
 
 - **Network centrality is only meaningful on larger gene sets (≥ ~20 genes).** With a
   handful of genes the graph is too sparse for betweenness/degree centrality to carry
   signal (a 5-gene network often has just a few edges), so the network-derived component of
   the composite score is noisy at small scale. Run with a substantial target list before
   relying on the centrality terms.
+
+- **The raw cache key intentionally excludes synonym/reference content.** `make_extract_key`
+  (`pipeline.py`) digests only fetch + extract inputs, *not* `pathway_synonyms.json` or
+  `reactome_pathways.txt` — by design, so curating canonicalization re-runs merge + enrich for
+  free off the cached extractions instead of re-fetching and re-extracting. The synonym and
+  reference file hashes live in `make_full_key` (the final layer) instead. Do **not** move them
+  into `make_extract_key`: it would couple the layers and silently break the fetch/extract-free re-merge
+  (the regression `tests/test_cache.py::test_extract_key_excludes_merge_and_enrich_params`
+  guards against). See [Resume cache](#resume-cache).
 
 - **`source_pmids` are unioned from inputs, not taken from the merger model.** The
   `annotate_target` tool schema has no `source_pmids` field, so the merged record's PMIDs
