@@ -434,6 +434,119 @@ All outputs land under `outputs/` and are regenerated on each run.
   `build_target_network(..., include_interactor_nodes=False)` for a target-only graph with
   no satellites (cleaner for larger gene sets). Load with `pickle.load(open(path, "rb"))`.
 
+## Example Results
+
+A real end-to-end run over five genes (`FOXF1, TP53, EGFR, KRAS, BRCA1`) with
+`DISEASE_CONTEXT=cancer` and CellxGene grounding enabled. _(Outputs are LLM-generated and will
+vary run to run; these are illustrative.)_
+
+### Run report — cold run
+
+A first run with empty caches runs the full chain for every gene:
+
+```
+╔══════════════════════════════════════════════════════╗
+║                 BioAnnot Run Report                  ║
+╠══════════════════════════════════════════════════════╣
+║ Genes                                                ║
+║   Total:      5     Succeeded: 5                     ║
+║   Failed:     0     Cached:    0                     ║
+║   Remerged:   0    (raw-cache, no fetch/extract)     ║
+╠══════════════════════════════════════════════════════╣
+║ Pathway Quality                                      ║
+║   NON-CANONICAL: 5/113 (4.4%)                        ║
+╠══════════════════════════════════════════════════════╣
+║ LLM Usage                                            ║
+║   Calls:      19                                     ║
+║   Input:      65240    tokens                        ║
+║   Output:     21129    tokens                        ║
+║   Cache read: 22820    tokens                        ║
+║   Cache hit:  89.4%                                  ║
+║   Est. cost:  $0.5296                                ║
+╠══════════════════════════════════════════════════════╣
+║ Runtime: 5m 26s                                      ║
+╚══════════════════════════════════════════════════════╝
+```
+
+### Run report — synonym edit (re-merge + prune)
+
+After editing `refs/pathway_synonyms.json`, the next run replays merge + enrich from the raw
+cache (no fetch/extract) and prunes the stale-key files left behind — note the disjoint
+`Succeeded`/`Remerged` counters and the much lower cost:
+
+```
+╔══════════════════════════════════════════════════════╗
+║                 BioAnnot Run Report                  ║
+╠══════════════════════════════════════════════════════╣
+║ Genes                                                ║
+║   Total:      5     Succeeded: 0                     ║
+║   Failed:     0     Cached:    0                     ║
+║   Remerged:   5    (raw-cache, no fetch/extract)     ║
+║   Cache pruned: 0 raw, 14 final                      ║
+╠══════════════════════════════════════════════════════╣
+║ ...                                                  ║
+║   Calls:      4          Est. cost:  $0.1657         ║
+║ Runtime: 1m 40s                                      ║
+╚══════════════════════════════════════════════════════╝
+```
+
+### One annotation (`outputs/final_annotations.json` → `FOXF1`, trimmed)
+
+```jsonc
+{
+  "gene_symbol": "FOXF1",
+  "functions": [
+    "sequence-specific DNA-binding transcription factor",
+    "suppression of fibroblast proliferation and collagen synthesis",
+    "transcriptional activator of EZH2"
+  ],
+  "cellular_states": [
+    "pulmonary fibroblasts", "alveolar epithelial cells",
+    "CellxGene: pericyte", "CellxGene: endothelial cell",      // measured, prefixed
+    "CellxGene: capillary endothelial cell"
+  ],
+  "pathways": [
+    "Signaling by Hedgehog", "Cellular Senescence", "Signaling by WNT",
+    "NON-CANONICAL: JAK-STAT signaling"                         // unresolved → flagged
+  ],
+  "disease_associations": [
+    { "disease": "B-cell acute lymphoblastic leukemia (B-ALL)",
+      "role": "oncogene", "evidence_strength": "strong" }
+  ],
+  "confidence": 0.88,
+  "source_count": 3,
+  "string_interactors": ["..."],
+  "safety_assessment": { "safety_flag": true, "max_tpm": 0 },
+  "cellxgene_expression": { "tissue": "lung", "cell_type_count": 12, "top_cell_types": ["..."] }
+}
+```
+
+### Prioritized targets (`outputs/prioritized_targets.tsv`, selected columns)
+
+| gene | composite | betweenness | degree | disease_score | cellxgene_score | confidence | safety_flag |
+|---|---|---|---|---|---|---|---|
+| BRCA1 | 0.580 | 0.397 | 0.268 | 7.2 | 1.0 | 0.88 | False |
+| TP53 | 0.466 | 0.546 | 0.274 | 14.4 | 1.0 | 0.89 | True |
+| EGFR | 0.459 | 0.507 | 0.274 | 6.7 | 1.0 | 0.89 | True |
+| KRAS | 0.428 | 0.358 | 0.263 | 7.0 | 1.0 | 0.88 | True |
+| FOXF1 | 0.380 | 0.180 | 0.068 | 3.0 | 1.0 | 0.88 | True |
+
+(`disease_score` is reported uncapped here but capped at 1.0 inside the composite; the full TSV
+also carries `druggability_bonus`, `safety_penalty_applied`, `high_expression_tissues`,
+`max_tpm`, `pathways`, and `disease_associations`.)
+
+### Plots (`python visualize_network.py` → `outputs/plots/`)
+
+| Target network | Per-gene score breakdown |
+|---|---|
+| ![Target network](docs/images/target_network.png) | ![Score breakdown](docs/images/score_breakdown.png) |
+| Nodes colored/sized by composite (red = high); green = pathway co-membership, gray = STRING PPI edges. | Confidence, capped disease_score, network (betweenness+degree), and composite per gene. |
+
+| Canonical-pathway heatmap | CellxGene single-cell expression |
+|---|---|
+| ![Pathway heatmap](docs/images/pathway_heatmap.png) | ![CellxGene expression](docs/images/cellxgene_expression.png) |
+| Genes × canonical Reactome pathways presence matrix (non-canonical names excluded). | Top cell types by mean single-cell expression per gene, from the Census grounding. |
+
 ## Quality Gates
 
 These are enforced automatically by the pipeline:
