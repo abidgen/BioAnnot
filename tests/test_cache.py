@@ -13,7 +13,16 @@ restore so this module's import has no global side effect.
 import os as _os
 
 _ENV_SNAPSHOT = dict(_os.environ)
-from pipeline import make_cache_key, read_cache, write_cache  # noqa: E402
+import pipeline  # noqa: E402
+from pipeline import (  # noqa: E402
+    make_cache_key,
+    make_extract_key,
+    make_full_key,
+    read_cache,
+    write_cache,
+    read_raw_cache,
+    write_raw_cache,
+)
 _os.environ.clear()
 _os.environ.update(_ENV_SNAPSHOT)
 
@@ -105,3 +114,107 @@ def test_enable_cache_false_disables_read(tmp_path):
     write_cache("TP53", c, {"x": 1})
     c.enable_cache = False
     assert read_cache("TP53", c) is None
+
+
+# --- Layer 1 (raw) key: scoped to fetch + extract inputs ONLY ---
+
+def test_extract_key_excludes_merge_and_enrich_params():
+    # The raw layer must NOT be invalidated by merge model, synonym/reference
+    # files, or any enrich param — that is what makes a synonym edit free.
+    ek = make_extract_key("TP53", _config())
+    changed = _config(
+        merge_model="claude-opus-4-8",
+        census_tissue="liver",
+        census_version="2099-01-01",
+        string_min_score=400,
+        gtex_tpm_threshold=99.0,
+    )
+    assert make_extract_key("TP53", changed) == ek
+
+def test_extract_key_changes_with_extraction_inputs():
+    ek = make_extract_key("TP53", _config())
+    assert make_extract_key("BRCA1", _config()) != ek
+    assert make_extract_key("TP53", _config(disease_context="fibrosis")) != ek
+    assert make_extract_key("TP53", _config(extraction_model="x")) != ek
+    assert make_extract_key("TP53", _config(pubmed_max_results=99)) != ek
+
+
+# --- Layer 2 (full) key: sensitive to synonym/reference file content ---
+
+def test_full_key_changes_with_synonym_file_content(tmp_path, monkeypatch):
+    # Editing the synonym map must invalidate the final layer but NOT the raw layer.
+    syn = tmp_path / "syn.json"
+    ref = tmp_path / "ref.txt"
+    syn.write_text("{}")
+    ref.write_text("Signaling by WNT\n")
+    monkeypatch.setattr(pipeline, "SYNONYMS_PATH", syn)
+    monkeypatch.setattr(pipeline, "REACTOME_REF_PATH", str(ref))
+    c = _config()
+
+    fk_before = make_full_key("TP53", c)
+    ek_before = make_extract_key("TP53", c)
+    syn.write_text('{"foo bar": "Signaling by WNT"}')
+    assert make_full_key("TP53", c) != fk_before     # final layer invalidated
+    assert make_extract_key("TP53", c) == ek_before  # raw layer untouched
+
+def test_full_key_changes_with_reactome_file_content(tmp_path, monkeypatch):
+    syn = tmp_path / "syn.json"
+    ref = tmp_path / "ref.txt"
+    syn.write_text("{}")
+    ref.write_text("Signaling by WNT\n")
+    monkeypatch.setattr(pipeline, "SYNONYMS_PATH", syn)
+    monkeypatch.setattr(pipeline, "REACTOME_REF_PATH", str(ref))
+    c = _config()
+
+    fk_before = make_full_key("TP53", c)
+    ref.write_text("Signaling by WNT\nNew Canonical Pathway\n")
+    assert make_full_key("TP53", c) != fk_before
+
+def test_make_cache_key_is_full_key_alias():
+    # Backward-compatible alias: the historical single key is the final-layer key.
+    assert make_cache_key is make_full_key
+
+
+# --- Layer 1 (raw) read/write: round-trip, subdirs, empty-list edge case ---
+
+def test_raw_cache_round_trip_in_separate_subdir(tmp_path):
+    c = _config(cache_dir=str(tmp_path))
+    extractions = [{"gene_symbol": "TP53", "confidence": 0.9}]
+    write_raw_cache("TP53", c, extractions)
+    write_cache("TP53", c, {"final": True})
+    assert read_raw_cache("TP53", c) == extractions
+    # The two layers live in distinct subdirectories.
+    assert (tmp_path / "raw").is_dir()
+    assert (tmp_path / "final").is_dir()
+
+def test_raw_cache_empty_list_is_a_hit(tmp_path):
+    # A gene with no high-confidence source caches []; that must read back as a hit
+    # (return []), not as a miss (None) — so it isn't re-fetched on the next run.
+    c = _config(cache_dir=str(tmp_path))
+    write_raw_cache("TP53", c, [])
+    assert read_raw_cache("TP53", c) == []
+
+def test_enable_cache_false_disables_raw(tmp_path):
+    c = _config(cache_dir=str(tmp_path), enable_cache=False)
+    write_raw_cache("TP53", c, [{"a": 1}])  # no-op
+    assert read_raw_cache("TP53", c) is None
+
+
+# --- FORCE_REMERGE / FORCE_RERUN across the two layers ---
+
+def test_force_remerge_misses_final_keeps_raw(tmp_path):
+    # The free re-merge path: final cache bypassed, raw cache still served.
+    c = _config(cache_dir=str(tmp_path))
+    write_cache("TP53", c, {"final": True})
+    write_raw_cache("TP53", c, [{"a": 1}])
+    c.force_remerge = True
+    assert read_cache("TP53", c) is None
+    assert read_raw_cache("TP53", c) == [{"a": 1}]
+
+def test_force_rerun_bypasses_both_layers(tmp_path):
+    c = _config(cache_dir=str(tmp_path))
+    write_cache("TP53", c, {"final": True})
+    write_raw_cache("TP53", c, [{"a": 1}])
+    c.force_rerun = True
+    assert read_cache("TP53", c) is None
+    assert read_raw_cache("TP53", c) is None

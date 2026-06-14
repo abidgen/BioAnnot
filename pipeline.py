@@ -44,6 +44,7 @@ from src.extractor import (
     extract_from_opentargets,
 )
 from src.merger import merge_annotations
+from src.pathways import SYNONYMS_PATH
 from src.filters.gtex_safety import assess_safety
 from src.network import (
     build_target_network,
@@ -53,6 +54,10 @@ from src.network import (
 )
 
 ANNOTATIONS_JSONL = Path("outputs/annotations.jsonl")
+
+# Canonical Reactome reference path — used both to load the name set and to
+# fingerprint the file into the final-layer cache key.
+REACTOME_REF_PATH = "refs/reactome_pathways.txt"
 
 log = logging.getLogger("bio_annot.pipeline")
 
@@ -66,7 +71,7 @@ def _reactome_ref() -> set[str]:
     """Lazily load and cache the canonical Reactome name set."""
     global _REACTOME_REF_CACHE
     if _REACTOME_REF_CACHE is None:
-        _REACTOME_REF_CACHE = load_ref_set("refs/reactome_pathways.txt")
+        _REACTOME_REF_CACHE = load_ref_set(REACTOME_REF_PATH)
     return _REACTOME_REF_CACHE
 
 
@@ -94,6 +99,7 @@ class RunStats:
     genes_succeeded: int = 0
     genes_failed: int = 0
     genes_cached: int = 0
+    genes_remerged: int = 0
     llm_calls: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
@@ -159,6 +165,7 @@ class RunStats:
             _row(" Genes"),
             _row(f"   Total:      {self.genes_total:<4}  Succeeded: {self.genes_succeeded:<4}"),
             _row(f"   Failed:     {self.genes_failed:<4}  Cached:    {self.genes_cached:<4}"),
+            _row(f"   Remerged:   {self.genes_remerged:<4} (raw-cache, no fetch/extract)"),
             _divider(),
             _row(" Pathway Quality"),
             _row(f"   NON-CANONICAL: {self.noncanonical_total}/{total_pathways} ({nc_pct:.1f}%)"),
@@ -316,60 +323,184 @@ async def run_enrich_stage(
     return merged
 
 
-def make_cache_key(gene: str, config: PipelineConfig) -> str:
-    """Content-addressed cache key for a gene's result.
+# ── Two-layer resume cache ────────────────────────────────────────────────────
+#
+# The cache is split into two independent layers so that editing the pathway
+# synonym map or the Reactome reference can refresh annotations WITHOUT paying for
+# fetch + extract again:
+#
+#   Layer 1 — raw extraction cache   outputs/cache/raw/{gene}_{extract_key}.json
+#       The high-confidence per-source extractions that feed the merge. Keyed by
+#       fetch + extract inputs ONLY (gene, disease context, extraction model,
+#       PubMed depth, extraction-prompt version). Excludes the synonym map, the
+#       Reactome reference, and all merge/enrich params — so a synonym edit never
+#       invalidates it.
+#
+#   Layer 2 — final enriched cache   outputs/cache/final/{gene}_{full_key}.json
+#       The final enriched record (unchanged contents/schema). Keyed by the
+#       extract_key PLUS the merge model, the synonym-map and Reactome-reference
+#       file hashes, and the enrich params — so editing any of those invalidates
+#       only this layer while the raw layer stays valid.
+#
+# Bump EXTRACT_PROMPT_VERSION whenever the extractor's prompt or output contract
+# changes in a way that should invalidate cached raw extractions.
+EXTRACT_PROMPT_VERSION = "1"
 
-    The key digests the inputs that determine the output — gene, disease
-    context, the extraction/merge models, the PubMed depth, and the CellxGene
-    tissue/version — so changing any of them invalidates the cache for that gene.
+RAW_CACHE_SUBDIR = "raw"
+FINAL_CACHE_SUBDIR = "final"
+
+
+def _file_fingerprint(path) -> str:
+    """A short content hash of a file, or "absent" if it does not exist.
+
+    Used to fold the synonym map and Reactome reference into the final cache key
+    so any edit to either file changes the key (and only the final layer's key).
+    """
+    p = Path(path)
+    if not p.exists():
+        return "absent"
+    return hashlib.md5(p.read_bytes()).hexdigest()[:12]
+
+
+def make_extract_key(gene: str, config: PipelineConfig) -> str:
+    """Cache key for the raw extraction layer (fetch + extract inputs only).
+
+    Digests the gene, the disease context (which shapes the PubMed query and the
+    extractor system prompt), the extraction model, the PubMed depth, and the
+    extraction-prompt version. Deliberately excludes the synonym map, the Reactome
+    reference, and every merge/enrich parameter so synonym/reference edits leave
+    the raw layer valid.
+
+    DO NOT add the synonym-map or Reactome-reference hash here — those belong in
+    ``make_full_key`` (the final layer). Folding them in would couple the two cache
+    layers and silently break zero-cost re-merge after a synonym edit. The test
+    ``tests/test_cache.py::test_extract_key_excludes_merge_and_enrich_params``
+    guards this invariant.
     """
     components = "|".join([
         gene,
         config.disease_context,
         config.extraction_model,
-        config.merge_model,
         str(config.pubmed_max_results),
-        config.census_tissue,
-        config.census_version,
+        EXTRACT_PROMPT_VERSION,
     ])
     return hashlib.md5(components.encode()).hexdigest()[:12]
 
 
-def read_cache(gene: str, config: PipelineConfig) -> dict | None:
-    """Return a gene's cached result, or None on miss / cache disabled / force.
+def make_full_key(gene: str, config: PipelineConfig) -> str:
+    """Cache key for the final enriched layer (the whole chain).
 
-    Honors ENABLE_CACHE (off → no cache) and FORCE_RERUN (on → ignore existing
-    cache so all stages recompute; the fresh result is still written back).
+    Builds on ``make_extract_key`` and adds everything that can change the final
+    record given the same raw extractions: the merge model, the synonym-map and
+    Reactome-reference file fingerprints, and the enrich params (CellxGene tissue/
+    version + toggle, STRING thresholds, GTEx thresholds). Editing the synonym map
+    or the Reactome reference changes only this key, never the extract key.
     """
-    if not config.enable_cache or config.force_rerun:
+    components = "|".join([
+        make_extract_key(gene, config),
+        config.merge_model,
+        _file_fingerprint(SYNONYMS_PATH),
+        _file_fingerprint(REACTOME_REF_PATH),
+        config.census_tissue,
+        config.census_version,
+        str(config.enable_cellxgene),
+        str(config.string_min_score),
+        str(config.string_limit),
+        str(config.gtex_tpm_threshold),
+        str(config.gtex_min_tissues),
+    ])
+    return hashlib.md5(components.encode()).hexdigest()[:12]
+
+
+# Backward-compatible alias: the historical single-cache key is the final-layer
+# key. Existing callers and tests that import ``make_cache_key`` keep working.
+make_cache_key = make_full_key
+
+
+def _raw_cache_path(gene: str, config: PipelineConfig) -> Path:
+    return (Path(config.cache_dir) / RAW_CACHE_SUBDIR
+            / f"{gene}_{make_extract_key(gene, config)}.json")
+
+
+def _final_cache_path(gene: str, config: PipelineConfig) -> Path:
+    return (Path(config.cache_dir) / FINAL_CACHE_SUBDIR
+            / f"{gene}_{make_full_key(gene, config)}.json")
+
+
+def read_cache(gene: str, config: PipelineConfig) -> dict | None:
+    """Return a gene's final enriched record, or None on miss / disabled / force.
+
+    Honors ENABLE_CACHE (off → no cache), FORCE_RERUN (recompute everything), and
+    FORCE_REMERGE (recompute merge + enrich from the raw cache). All three cause a
+    final-cache miss; the fresh result is still written back afterward.
+    """
+    if not config.enable_cache or config.force_rerun or config.force_remerge:
         return None
-    path = Path(config.cache_dir) / f"{gene}_{make_cache_key(gene, config)}.json"
+    path = _final_cache_path(gene, config)
     if path.exists():
-        log.info("Gene %s: cache hit → skipping all stages", gene)
+        log.info("Gene %s: final-cache hit → skipping all stages", gene)
         return json.loads(path.read_text())
     return None
 
 
 def write_cache(gene: str, config: PipelineConfig, result: dict) -> None:
-    """Persist a gene's result to the resume cache (no-op if caching disabled)."""
+    """Persist a gene's final enriched record (no-op if caching disabled)."""
     if not config.enable_cache:
         return
-    Path(config.cache_dir).mkdir(parents=True, exist_ok=True)
-    path = Path(config.cache_dir) / f"{gene}_{make_cache_key(gene, config)}.json"
+    path = _final_cache_path(gene, config)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(result, indent=2, default=str))
-    log.info("Gene %s: cached to %s", gene, path)
+    log.info("Gene %s: final result cached to %s", gene, path)
+
+
+def read_raw_cache(gene: str, config: PipelineConfig) -> list[dict] | None:
+    """Return a gene's cached high-confidence extractions, or None on miss.
+
+    Honors ENABLE_CACHE and FORCE_RERUN (which bypasses both layers). FORCE_REMERGE
+    deliberately does NOT bypass this layer — that is what makes a re-merge free:
+    the extractions are reused and only merge + enrich rerun. An empty list is a
+    valid hit (the gene had no high-confidence source) and is returned as ``[]``.
+    """
+    if not config.enable_cache or config.force_rerun:
+        return None
+    path = _raw_cache_path(gene, config)
+    if path.exists():
+        log.info("Gene %s: raw extraction cache hit", gene)
+        return json.loads(path.read_text()).get("extractions")
+    return None
+
+
+def write_raw_cache(
+    gene: str, config: PipelineConfig, extractions: list[dict]
+) -> None:
+    """Persist a gene's high-confidence extractions (no-op if caching disabled)."""
+    if not config.enable_cache:
+        return
+    path = _raw_cache_path(gene, config)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"extractions": extractions}, indent=2, default=str))
+    log.info("Gene %s: raw extraction cached to %s", gene, path)
 
 
 async def run_gene(
     gene: str, config: PipelineConfig, stats: RunStats
 ) -> dict | None:
-    """Run all stages for a single gene, accumulating LLM usage into ``stats``.
+    """Run all stages for a single gene through the two-layer resume cache.
+
+    Execution order:
+      1. Final-cache (full_key) hit → return the cached record, no work done
+         (counts in ``stats.genes_cached``).
+      2. Raw-cache (extract_key) hit → skip fetch + extract and replay merge +
+         enrich from the cached extractions, no fetch/extract API cost (counts in
+         ``stats.genes_remerged``). This is the zero-cost path a synonym edit or
+         FORCE_REMERGE takes.
+      3. Miss on both → run fetch + extract, write the raw cache, then merge +
+         enrich.
 
     Returns the enriched annotation, or ``None`` when no high-confidence source
-    survived the merge gate. On a resume-cache hit, returns the cached result
-    without running any stage (and counts it in ``stats.genes_cached``).
+    survived the merge gate.
     """
-    # Check the on-disk resume cache first.
+    # Layer 2 — final enriched cache: a hit short-circuits the whole chain.
     cached = read_cache(gene, config)
     if cached is not None:
         stats.genes_cached += 1
@@ -378,10 +509,22 @@ async def run_gene(
         cached["_from_cache"] = True
         return cached
 
-    fetched = await run_fetch_stage(gene, config)
-    extractions, extract_usages = await run_extract_stage(gene, fetched, config)
-    for usage in extract_usages:
-        stats.add_usage(usage)
+    # Layer 1 — raw extraction cache: a hit replays merge + enrich with no
+    # fetch/extract API calls (the free re-merge path).
+    extractions = read_raw_cache(gene, config)
+    if extractions is not None:
+        log.info(
+            "Gene %s: raw-cache hit → replaying merge + enrich "
+            "(no fetch/extract API calls)",
+            gene,
+        )
+        stats.genes_remerged += 1
+    else:
+        fetched = await run_fetch_stage(gene, config)
+        extractions, extract_usages = await run_extract_stage(gene, fetched, config)
+        for usage in extract_usages:
+            stats.add_usage(usage)
+        write_raw_cache(gene, config, extractions)
 
     merged, merge_usage = await run_merge_stage(gene, extractions, config)
     if merged is None:
@@ -439,6 +582,18 @@ async def main() -> None:
     Path("outputs/raw").mkdir(parents=True, exist_ok=True)
     # Start each run with a fresh annotations log so re-runs don't accumulate.
     ANNOTATIONS_JSONL.unlink(missing_ok=True)
+
+    # Pre-two-layer caches were flat files directly under cache_dir; they are not
+    # read by the new raw/ + final/ layers. Warn so they can be cleaned up; this
+    # run repopulates both layers as genes recompute.
+    legacy = [p for p in Path(config.cache_dir).glob("*.json") if p.is_file()]
+    if legacy:
+        log.warning(
+            "Found %d legacy flat cache file(s) in %s from before the two-layer "
+            "cache; they are ignored. Delete them once raw/ and final/ are "
+            "populated by this run.",
+            len(legacy), config.cache_dir,
+        )
 
     log.info("Running in disease context: %s", config.disease_context)
     genes = load_gene_list("inputs/target_genes.txt")
