@@ -246,15 +246,15 @@ for fetch + extraction again.
 ```
                               run_gene(gene)
                                     │
-                  ┌─────────────────▼─────────────────┐
-                  │ Layer 2 — final cache             │
-                  │ outputs/cache/final/{gene}_{full_key}.json
-                  └─────────────────┬─────────────────┘
+                  ┌─────────────────▼──────────────────────────┐
+                  │ Layer 2 — final cache                      │
+                  │ outputs/cache/final/{gene}_{full_key}.json │
+                  └─────────────────┬──────────────────────────┘
                        HIT ◄────────┤────────► MISS
-                  return enriched   │   ┌──────────────────────────────┐
-                  record (no work)  │   │ Layer 1 — raw extraction cache│
-                                    │   │ outputs/cache/raw/{gene}_{extract_key}.json
-                                    │   └──────────┬───────────────────┘
+                  return enriched   │   ┌─────────────────────────────────────────────┐
+                  record (no work)  │   │ Layer 1 — raw extraction cache              │
+                                    │   │ outputs/cache/raw/{gene}_{extract_key}.json │
+                                    │   └──────────┬──────────────────────────────────┘
                                     │     HIT ◄────┤────► MISS
                                     │  skip fetch  │   fetch + extract (API),
                                     │  + extract   │   then write raw cache
