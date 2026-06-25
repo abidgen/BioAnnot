@@ -45,3 +45,9 @@ outputs/plots/
 outputs/plots/
 outputs/run_console.log
 outputs/cache/
+scripts/build_presentation.js
+scripts/build_short_presentation.js
+scripts/rezip.py
+CLAUDE.md
+CLAUDE_pptx.md
+notes.txt
