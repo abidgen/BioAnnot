@@ -33,17 +33,17 @@ refs/reactome_pathways.txt│  loaded once
 refs/pathway_synonyms.json┘
         │
         ▼  per gene, concurrency = SEMAPHORE_LIMIT (default 3), with retry + error isolation
-┌──────────────────────────────────────────────────────────────────────┐
+┌────────────────────────────────────────────────────────────────────────┐
 │ run_gene(gene)                                                         │
 │   1. final cache (full_key)  ── HIT ▶ return record  (genes_cached)    │
 │   2. raw cache  (extract_key)── HIT ▶ skip 3, go to 4 (genes_remerged) │
 │   3. FETCH + EXTRACT ▶ write raw cache              (full chain)       │
-│        PubMed → UniProt → OpenTargets ▶ LLM extract per source         │
+│        PubMed → UniProt → OpenTargets ▶ LLM extract per source        │
 │   4. confidence gate (applied here, not at extract time)               │
 │   5. MERGE  (LLM for ≥2 sources; local for 1) ▶ pathway canonicalize   │
 │   6. ENRICH  STRING + GTEx safety + CellxGene                          │
 │   7. write final cache; append to annotations.jsonl  (genes_succeeded) │
-└──────────────────────────────────────────────────────────────────────┘
+└────────────────────────────────────────────────────────────────────────┘
         │  all genes complete
         ▼
   prune_stale_cache → final_annotations.json
