@@ -249,9 +249,9 @@ centrality contribution is small — even though its individual annotation is ri
  │        │         │           │           │                              │
  │     conf 0.88  conf 0.55   conf 0.55     │ ← LLM self-rates per rubric  │
  │        │         │           │           │                              │
- │        ▼─────────▼───────────▼          │   outputs/raw/FOXF1_raw.json  │
+ │        ▼─────────▼───────────▼           │   outputs/raw/FOXF1_raw.json │
  │   3. FILTER  (keep conf ≥ 0.65)          │                              │
- │     KEEP ✓    DROP ✗      DROP ✗        │                               │
+ │     KEEP ✓    DROP ✗      DROP ✗         │                              │
  │        │                                 │                              │
  │        ▼                                 │                              │
  │   4. MERGE  (claude-sonnet-4-6)  ◄───── STRING / GTEx / CellxGene join  │
