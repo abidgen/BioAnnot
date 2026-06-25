@@ -143,14 +143,35 @@ extraction), again with the forced `annotate_target` tool.
     (curated UniProt/OpenTargets weigh more than free-text PubMed), minus 0.1 per
     material conflict resolved, clamped to [0, 1].
 
-### Pathway canonicity
-After the merge, every pathway is checked against `refs/reactome_pathways.txt`.
-Non-matching names are **prefixed** (not dropped) with `NON-CANONICAL: `. In
-FOXF1's final record, `JAK-STAT signaling` became
-`NON-CANONICAL: JAK-STAT signaling`, while `Signaling by WNT`, `Cellular
-Senescence`, etc. matched and were kept clean.
+### Pathway canonicity (4-tier resolution, not a plain string match)
+After the merge, every pathway name is resolved against
+`refs/reactome_pathways.txt` by `src/pathways.fuzzy_canonical()`, which tries
+four tiers in order (method recorded as `exact`/`synonym`/`fuzzy`/`non_canonical`):
 
-### Non-LLM enrichment attached here
+1. **exact** — normalized match (lowercased, and a trailing Reactome
+   `(R-HSA-…)` ID suffix is stripped first), returned in the reference's casing.
+2. **synonym** — an informal→canonical map (`refs/pathway_synonyms.json`, built
+   offline by `scripts/build_synonyms.py`), case-insensitive.
+3. **fuzzy** — `rapidfuzz` token-sort ratio **≥ 85** (`fuzzy_threshold`), with a
+   **gene-token guard** so e.g. "Signaling by EGFR" can't fuzzily collapse into
+   "Signaling by ERBB2".
+4. **non_canonical** — none matched → the bare name is **prefixed** (not dropped)
+   with `NON-CANONICAL: `.
+
+In FOXF1's final record, `JAK-STAT signaling` fell through to tier 4 →
+`NON-CANONICAL: JAK-STAT signaling`, while `Signaling by WNT`, `Cellular
+Senescence`, etc. resolved at tier 1 and were kept clean.
+
+> **Reactome is a *reference*, not a fetched source here.** `src/fetchers/reactome.py`
+> exists but is **not wired into `pipeline.py`** — the only Reactome input to a
+> run is the canonical name list above. The four live per-gene sources are
+> PubMed, UniProt, OpenTargets, and STRING.
+
+### Enrich — a distinct stage after merge (`run_enrich_stage`)
+The pipeline runs as four stages per gene — **fetch → extract → merge →
+enrich** — not three. The non-LLM enrichment below is its own stage that
+*mutates the merged record* (this is also the boundary the two-layer cache uses;
+see §7):
 - **STRING** 10 partners → `string_interactors`.
 - **GTEx safety** → `safety_assessment`. FOXF1 flagged: high expression in
   Colon-Sigmoid, Lung, Small Intestine (max **122.1 TPM**). Logged as a WARNING.
@@ -161,6 +182,92 @@ Result is written to `outputs/final_annotations.json` (and appended to
 `annotations.jsonl`). FOXF1's merged record: 8 functions, 8 pathways
 (1 non-canonical), 9 disease associations, 9 interactors unioned with 10 STRING
 partners, `confidence: 0.88`.
+
+---
+
+## 4a. How the GTEx and CellxGene steps actually work
+
+Both bypass the LLM entirely — they are numeric lookups over reference data. They
+play **opposite roles**: GTEx is a *penalty* (safety brake), CellxGene is a
+*reward* (evidence grounding). Neither **drops** a gene; both only nudge the
+final score.
+
+### GTEx safety filter — `src/filters/gtex_safety.py`
+
+**Data:** GTEx v8 gene-level **median TPM** table (~56k genes × 54 tissues),
+downloaded once and cached at `refs/gtex_median_tpm.gct.gz`. Parsed at import
+into a symbol-indexed DataFrame.
+
+**Logic (`assess_safety`):**
+1. Look up the gene's row. If a symbol maps to multiple Ensembl rows, collapse by
+   the **max** median TPM per tissue (worst-case assessment).
+2. Restrict to a fixed set of **9 sensitive normal tissues** (`SENSITIVE_TISSUES`):
+   Brain-Cortex, Brain-Cerebellum, Heart-Left Ventricle, Liver, Kidney-Cortex,
+   Lung, Adrenal Gland, Small Intestine-Terminal Ileum, Colon-Sigmoid.
+3. Count how many of those tissues have median TPM **> 10.0**
+   (`gtex_tpm_threshold`).
+4. If **≥ 3** sensitive tissues qualify (`gtex_min_tissues`), set
+   `safety_flag = True`.
+
+This is the classic **on-target / off-tumor** concern: a drug hitting a target
+that's also highly expressed in healthy liver/brain/heart risks toxicity there.
+
+**Effect on the score:** a flagged gene's composite is multiplied by
+**`safety_penalty = 0.75`** — deprioritized, *not* eliminated (the note even
+warns that for a tissue-specific TF like FOXF1, high normal expression may be
+on-target biology, so it's a "review before advancing" prompt, not a verdict).
+
+**FOXF1 (real run):** flagged — 3 sensitive tissues over threshold
+(Colon-Sigmoid, Lung, Small Intestine), **max 122.1 TPM** in lung. → `×0.75`.
+Of the five genes, only **BRCA1 was not flagged**, which is the single biggest
+reason it tops the ranking despite TP53 having higher centrality.
+
+### CellxGene grounding — `src/fetchers/cellxgene.py`
+
+**Data:** CellxGene **Census** (single-cell atlas), version pinned to
+`2024-07-01` for reproducibility; results cached per `(gene, tissue)` under
+`refs/census_cache/`.
+
+**Logic (`fetch_cellxgene` → `_query_census`):**
+1. Slice the census to **one gene in one tissue** (default `tissue_general =
+   lung`), **primary cells only** (`is_primary_data == True`, so a cell duplicated
+   across datasets is never double-counted).
+2. Pull the raw expression column (cells × 1), group by `cell_type`, and compute
+   the **mean expression** and **cell count** per cell type.
+3. Keep only cell types with **≥ 50 cells** (`census_min_cells`) so a mean isn't
+   built from a handful of cells; sort by descending mean.
+
+Its purpose is to **ground** the LLM-extracted `cellular_states` field in
+*measured* per-cell-type expression rather than text claims. For FOXF1 it
+returned 170 cell types in lung, top ones pericyte (4.65), endothelial (3.04),
+etc. — and those measured types are appended into `cellular_states` as
+`CellxGene: …` entries.
+
+**Effect on the score:** it contributes `cellxgene_score`, a coarse **breadth**
+signal based purely on *how many* cell types passed the filter
+(`cell_type_count`):
+
+```
+cellxgene_score = 1.0  if ≥ 3 cell types
+                  0.5  if ≥ 1 cell type
+                  0.0  otherwise
+```
+
+That score enters the composite with weight **0.15** (`weight_cellxgene`). All
+five genes scored 1.0 here, so in this particular run it didn't separate them —
+but it rewards targets whose expression is actually measurable in single-cell
+data over those that aren't.
+
+### Side-by-side
+
+| | GTEx safety | CellxGene grounding |
+|---|---|---|
+| Source | GTEx v8 median-TPM bulk table | CellxGene Census single-cell atlas |
+| Question | "Is it expressed in *sensitive normal* tissue?" | "In how many cell types is it *measurably* expressed?" |
+| Threshold | > 10 TPM in ≥ 3 of 9 sensitive tissues | ≥ 50 cells per cell type to count |
+| Direction | **Penalty** (×0.75 if flagged) | **Reward** (cellxgene_score, weight 0.15) |
+| Drops genes? | No — deprioritizes | No — adds evidence + score |
+| FOXF1 result | flagged, max 122.1 TPM lung → ×0.75 | 170 cell types → score 1.0 |
 
 ---
 
@@ -229,6 +336,57 @@ centrality contribution is small — even though its individual annotation is ri
 
 ---
 
+## 7. Cross-cutting machinery (not visible in the per-gene trace)
+
+The stage-by-stage story above omits machinery that wraps every run:
+
+### Two-layer resume cache
+Re-running is cheap because results are cached at **two** independent layers
+(keyed by content fingerprints, so the right thing invalidates the right layer):
+
+- **Layer 1 — raw extraction cache** (`outputs/cache/raw/{gene}_{extract_key}.json`):
+  the unfiltered per-source LLM extractions. `extract_key` hashes the fetched
+  inputs + extractor model/prompt — but **excludes** the synonym map, Reactome
+  reference, and confidence threshold.
+- **Layer 2 — final enriched cache** (`outputs/cache/final/{gene}_{full_key}.json`):
+  the merged + enriched record. `full_key` = `extract_key` **plus** the
+  synonym-map and Reactome-reference file hashes.
+
+Consequence: editing `pathway_synonyms.json` or `reactome_pathways.txt`, or
+changing `CONFIDENCE_THRESHOLD`, triggers a **re-merge from the raw cache with no
+re-fetch and no re-extraction** (logged as "Remerged … raw-cache, no
+fetch/extract"). `FORCE_RERUN` bypasses the cache entirely. After each run,
+**stale cache files** from superseded keys are pruned (unless `FORCE_RERUN`).
+
+### Synonym feedback loop
+If `AUTO_UPDATE_SYNONYMS=true`, after the run `scripts/build_synonyms.py` mines
+this run's `NON-CANONICAL:` names and appends validated informal→canonical
+mappings to `refs/pathway_synonyms.json`, so the **next** run's fuzzy
+canonicalization (tier 2) recognizes them. Pruning runs *before* this rewrite so
+the just-written final files aren't deleted as stale.
+
+### Run report — token + cost accounting
+At the end, `print_report()` summarizes gene outcomes (processed / failed /
+cached / remerged / pruned), pathway quality, and LLM usage: input/output tokens,
+**prompt-cache hit rate**, and an **estimated USD cost** (input, output, cache-read
+@ $0.30/M, cache-write @ $3.75/M). This is the cost-estimation gate the project
+rules call for before scaling to a batch run.
+
+### Post-processing (separate commands, not part of `python pipeline.py`)
+- **Visualization** — `python visualize_network.py` reads the existing outputs and
+  writes `outputs/plots/` (target network, per-gene score breakdown, pathway
+  heatmap, CellxGene expression). It does **not** re-run the pipeline.
+- **Cytoscape export** — `scripts/export_cytoscape.py` (and `visualize_network.py`)
+  emit `target_network_cytoscape.{json,cx2}` for Cytoscape.
+
+### Batch variant — `batch_pipeline.py`
+For ≥ 50 genes: fetches all sources synchronously, submits one **Anthropic Batch
+API** job (~50% cheaper), polls until it ends, then takes the **single-source**
+result per gene (no multi-source merge — the merge pass only validates pathway
+names), and builds the network/TSV exactly as the standard pipeline.
+
+---
+
 ## Flow-of-information diagram
 
 ```
@@ -288,7 +446,9 @@ centrality contribution is small — even though its individual annotation is ri
 | Fetch | gene symbol | PMIDs, UniProt JSON, OT associations, STRING partners | PMID regex `^\d{7,8}$` |
 | Extract | source text | structured record + **LLM-rated confidence** | force tool, ~3000-word cap |
 | Filter | 3 records | high-conf subset | `confidence ≥ 0.65` |
-| Merge | surviving records | one merged record | ≥2 sources or conf ≥0.85 per pathway; NON-CANONICAL prefix |
+| Merge | surviving records | one merged record | ≥2 sources or conf ≥0.85 per pathway; 4-tier canonicalization |
+| Enrich | merged record | + STRING / GTEx / CellxGene fields | non-LLM lookups; mutates record |
 | Network | all merged records | graph | centrality on undirected projection |
 | Score | graph | ranked TSV | disease_score capped at 1.0; safety ×0.75 |
+| *(wrap)* | a run | cache + report | two-layer cache, stale-prune, token/cost report |
 ```
