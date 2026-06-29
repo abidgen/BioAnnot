@@ -409,7 +409,7 @@ names), and builds the network/TSV exactly as the standard pipeline.
  │        │         │           │           │                              │
  │        ▼─────────▼───────────▼           │   outputs/raw/FOXF1_raw.json │
  │   3. FILTER  (keep conf ≥ 0.65)          │                              │
- │     KEEP ✓    DROP ✗      DROP ✗         │                              │
+ │     KEEP ✓    DROP ✗      DROP ✗        │                              │
  │        │                                 │                              │
  │        ▼                                 │                              │
  │   4. MERGE  (claude-sonnet-4-6)  ◄───── STRING / GTEx / CellxGene join  │
