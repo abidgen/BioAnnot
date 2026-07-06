@@ -29,15 +29,22 @@ async def call_tool(
     tool_name: str,
     max_tokens: int = 4096,
     label: str = "",
+    temperature: float | None = None,
 ) -> tuple[dict, dict]:
     """Call Claude with forced tool use and prompt caching.
 
     The system prompt and every tool schema are marked ``cache_control:
     ephemeral`` so the static prefix is served from the prompt cache across
     calls. ``tool_choice`` forces ``tool_name`` so the model must emit exactly
-    one structured tool call. Returns ``(tool_input_dict, usage_dict)``.
+    one structured tool call. ``temperature`` is forwarded only when set (``None``
+    leaves the API default), so a caller can pin it (e.g. the merge uses ``0.0``
+    for run-to-run reproducibility) without changing others. Returns
+    ``(tool_input_dict, usage_dict)``.
     """
     client = get_client()
+    # Only forward temperature when explicitly set, so the API default is
+    # preserved for callers that don't pass one.
+    extra = {} if temperature is None else {"temperature": temperature}
     response = client.messages.create(
         model=model,
         max_tokens=max_tokens,
@@ -50,6 +57,7 @@ async def call_tool(
                for t in tools],
         tool_choice={"type": "tool", "name": tool_name},
         messages=messages,
+        **extra,
     )
     usage = response.usage
     log.info(

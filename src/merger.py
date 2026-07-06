@@ -204,6 +204,10 @@ async def merge_annotations(
         tool_name="annotate_target",
         max_tokens=MAX_TOKENS,
         label=f"merge_annotations({gene}, {n} sources)",
+        # Pin to 0 for run-to-run reproducibility: a re-merge (e.g. after a
+        # cache-invalidating config change) must reconcile the same sources the
+        # same way, so the merged pathway set / network doesn't drift.
+        temperature=0.0,
     )
     merged = dict(merged_input)
 
