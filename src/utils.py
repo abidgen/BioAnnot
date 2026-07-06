@@ -41,19 +41,25 @@ def estimate_tokens(text: str) -> int:
     return len(text) // 4
 
 
-def setup_logging(level: str = "INFO") -> logging.Logger:
-    """Configure root logging to stdout and outputs/pipeline.log.
+def setup_logging(level: str = "INFO", log_dir: str | Path | None = None) -> logging.Logger:
+    """Configure root logging to stdout and a ``pipeline.log`` file.
+
+    ``log_dir`` chooses where the log file is written; it defaults to ``outputs/``
+    for backward compatibility, but the pipelines pass their timestamped run
+    directory so each run keeps its own log alongside its other artifacts.
 
     Returns the package logger ("bio_annot").
     """
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    log_dir = Path(log_dir) if log_dir is not None else LOG_DIR
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "pipeline.log"
 
     formatter = logging.Formatter(_LOG_FORMAT)
 
     stream_handler = logging.StreamHandler(sys.stdout)
     stream_handler.setFormatter(formatter)
 
-    file_handler = logging.FileHandler(LOG_FILE)
+    file_handler = logging.FileHandler(log_file)
     file_handler.setFormatter(formatter)
 
     root = logging.getLogger()
@@ -65,6 +71,29 @@ def setup_logging(level: str = "INFO") -> logging.Logger:
     root.addHandler(file_handler)
 
     return logging.getLogger("bio_annot")
+
+
+def resolve_run_dir() -> Path:
+    """Directory of the run whose artifacts a *reader* tool should load.
+
+    Runs write into a timestamped ``outputs/runs/<ts>/`` directory (see
+    ``PipelineConfig.run_dir``) with ``outputs/latest`` pointing at the newest one.
+    Reader tools (visualization, cytoscape export, synonym rebuild) resolve which
+    run to read here, in priority order:
+
+      1. ``$RUN_DIR`` if it names an existing directory — lets a caller pin a
+         specific run (the pipeline sets this when it spawns build_synonyms.py so
+         the child reads the exact run just written, not a fresh timestamp).
+      2. ``outputs/latest`` — the most recent run.
+      3. ``outputs/`` — legacy pre-timestamp layout / first-run fallback.
+    """
+    env_dir = os.getenv("RUN_DIR")
+    if env_dir and Path(env_dir).is_dir():
+        return Path(env_dir)
+    latest = Path("outputs/latest")
+    if latest.exists():
+        return latest
+    return Path("outputs")
 
 
 # Module-level logger used by the retry decorator's before_sleep hook.

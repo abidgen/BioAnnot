@@ -31,10 +31,12 @@ from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 
 from src.config import config
+from src.utils import resolve_run_dir
 
-NETWORK_PATH = "outputs/target_network.gpickle"
-SCORES_PATH = "outputs/prioritized_targets.tsv"
-PLOTS_DIR = Path("outputs/plots")
+RUN_DIR = resolve_run_dir()
+NETWORK_PATH = str(RUN_DIR / "target_network.gpickle")
+SCORES_PATH = str(RUN_DIR / "prioritized_targets.tsv")
+PLOTS_DIR = RUN_DIR / "plots"
 
 NON_CANONICAL_PREFIX = "NON-CANONICAL: "
 

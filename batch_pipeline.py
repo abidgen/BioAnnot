@@ -13,7 +13,6 @@ import asyncio
 import json
 import logging
 import time
-from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -45,6 +44,7 @@ from src.network import (
     save_network,
     save_prioritized_tsv,
 )
+from pipeline import RUN_DIR, _update_latest_pointer
 
 # Extraction model is env-driven (EXTRACTION_MODEL) via src.extractor, so batch
 # and standard pipelines stay on the same model without a second hardcoded value.
@@ -85,8 +85,10 @@ async def fetch_all(genes: list[str]) -> list[tuple[str, str]]:
 
 
 def main() -> None:
-    setup_logging(config.log_level)
-    Path("outputs/raw").mkdir(parents=True, exist_ok=True)
+    (RUN_DIR / "raw").mkdir(parents=True, exist_ok=True)
+    setup_logging(config.log_level, log_dir=RUN_DIR)
+    _update_latest_pointer(RUN_DIR)
+    log.info("Run output directory: %s", RUN_DIR)
 
     genes = load_gene_list("inputs/target_genes.txt")
     reactome_ref = load_ref_set("refs/reactome_pathways.txt")
@@ -133,7 +135,7 @@ def main() -> None:
     batch = client.messages.batches.create(requests=requests)
     log.info("Submitted batch %s", batch.id)
     print(f"Batch ID: {batch.id}")
-    with open("outputs/batch_id.txt", "w", encoding="utf-8") as f:
+    with open(RUN_DIR / "batch_id.txt", "w", encoding="utf-8") as f:
         f.write(batch.id + "\n")
 
     # 4. Poll until the batch ends.
@@ -168,23 +170,24 @@ def main() -> None:
             merged, _usage = await merge_annotations(gene, sources, reactome_ref)
             final_annotations[gene] = merged
             with open(
-                Path("outputs/raw") / f"{gene}_raw.json", "w", encoding="utf-8"
+                RUN_DIR / "raw" / f"{gene}_raw.json", "w", encoding="utf-8"
             ) as f:
                 json.dump(sources, f, indent=2)
 
     asyncio.run(_merge_all())
 
-    with open("outputs/final_annotations.json", "w", encoding="utf-8") as f:
+    final_json_path = RUN_DIR / "final_annotations.json"
+    with open(final_json_path, "w", encoding="utf-8") as f:
         json.dump(final_annotations, f, indent=2)
     log.info(
-        "Wrote %d annotations → outputs/final_annotations.json", len(final_annotations)
+        "Wrote %d annotations → %s", len(final_annotations), final_json_path
     )
 
     # 7. Build network and prioritize — same as pipeline.py.
     G = build_target_network(final_annotations)
-    save_network(G, "outputs/target_network.gpickle")
+    save_network(G, str(RUN_DIR / "target_network.gpickle"))
     scores = compute_priority_scores(G, disease_context["context"])
-    save_prioritized_tsv(scores, "outputs/prioritized_targets.tsv")
+    save_prioritized_tsv(scores, str(RUN_DIR / "prioritized_targets.tsv"))
     log.info("Top 5 targets: %s", [s["gene"] for s in scores[:5]])
 
 

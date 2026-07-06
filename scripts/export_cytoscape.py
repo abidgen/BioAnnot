@@ -18,16 +18,26 @@ from __future__ import annotations
 
 import json
 import pickle
+import sys
 from collections import Counter
 from pathlib import Path
 
 import networkx as nx
 
-NETWORK_PATH = Path("outputs/target_network.gpickle")
-OUTPUT_PATH = Path("outputs/target_network_cytoscape.json")
-TARGETS_OUTPUT_PATH = Path("outputs/target_network_cytoscape_targets.json")
-FULL_CX2_PATH = Path("outputs/target_network_cytoscape.cx2")
-TARGETS_CX2_PATH = Path("outputs/target_network_cytoscape_targets.cx2")
+# Make the project root importable when run as a standalone script
+# (the script's own dir, not the project root, is on sys.path by default).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from src.utils import resolve_run_dir
+
+# Read/write within the resolved run directory (outputs/latest by default; set
+# RUN_DIR to target a specific run).
+_RUN_DIR = resolve_run_dir()
+NETWORK_PATH = _RUN_DIR / "target_network.gpickle"
+OUTPUT_PATH = _RUN_DIR / "target_network_cytoscape.json"
+TARGETS_OUTPUT_PATH = _RUN_DIR / "target_network_cytoscape_targets.json"
+FULL_CX2_PATH = _RUN_DIR / "target_network_cytoscape.cx2"
+TARGETS_CX2_PATH = _RUN_DIR / "target_network_cytoscape_targets.cx2"
 
 # Cytoscape's own per-element keys (added by nx.cytoscape_data), excluded from
 # the "domain attributes" line of the summary.

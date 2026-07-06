@@ -38,6 +38,7 @@ from rapidfuzz import fuzz, process
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.config import config
+from src.utils import resolve_run_dir
 from src.pathways import (
     NON_CANONICAL_PREFIX,
     _normalize,
@@ -45,7 +46,10 @@ from src.pathways import (
     gene_token_guard,
 )
 
-FINAL_ANNOTATIONS = Path("outputs/final_annotations.json")
+# Read the annotations from the run just written by the pipeline. The pipeline
+# passes RUN_DIR in the subprocess env so this resolves to the exact run; run
+# standalone it falls back to outputs/latest.
+FINAL_ANNOTATIONS = resolve_run_dir() / "final_annotations.json"
 SYNONYMS_PATH = Path("refs/pathway_synonyms.json")
 REACTOME_PATH = Path("refs/reactome_pathways.txt")
 

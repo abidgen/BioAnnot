@@ -18,6 +18,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -53,7 +54,12 @@ from src.network import (
     save_prioritized_tsv,
 )
 
-ANNOTATIONS_JSONL = Path("outputs/annotations.jsonl")
+# Per-run output directory (timestamped; see PipelineConfig.run_dir). All of this
+# run's artifacts live here so consecutive runs never overwrite each other. The
+# resume cache (config.cache_dir) is intentionally NOT under here — it is shared
+# across runs.
+RUN_DIR = Path(config.run_dir)
+ANNOTATIONS_JSONL = RUN_DIR / "annotations.jsonl"
 
 # Canonical Reactome reference path — used both to load the name set and to
 # fingerprint the file into the final-layer cache key.
@@ -89,6 +95,25 @@ def _divider(left: str = "╠", right: str = "╣") -> str:
 def _row(text: str = "") -> str:
     """A box row: content padded/truncated to the box width, framed by ║."""
     return f"║{text[:_BOX_WIDTH]:<{_BOX_WIDTH}}║"
+
+
+def _update_latest_pointer(run_dir: Path) -> None:
+    """Point ``outputs/latest`` at ``run_dir`` (best-effort).
+
+    A relative symlink so the tree stays portable if moved. On platforms/filesystems
+    where symlinks aren't available, fall back to writing the run-dir path into a
+    plain ``outputs/latest.txt`` file rather than failing the run.
+    """
+    outputs_root = run_dir.parent.parent  # outputs/runs/<ts> → outputs
+    link = outputs_root / "latest"
+    target = run_dir.relative_to(outputs_root)  # e.g. runs/<ts>
+    try:
+        if link.is_symlink() or link.exists():
+            link.unlink()
+        link.symlink_to(target, target_is_directory=True)
+    except OSError as exc:
+        log.warning("Could not create outputs/latest symlink (%s); writing latest.txt", exc)
+        (outputs_root / "latest.txt").write_text(str(run_dir) + "\n")
 
 
 @dataclass
@@ -225,7 +250,7 @@ async def run_extract_stage(
     """Extract structured annotations from each source.
 
     Runs the LLM extractor over PubMed text, UniProt, and OpenTargets, persists
-    the per-source extractions to ``outputs/raw/{gene}_raw.json``, and returns
+    the per-source extractions to ``{run_dir}/raw/{gene}_raw.json``, and returns
     ``(extractions, usages)`` — every successful per-source extraction
     (**pre-confidence-filter**) plus the per-call token-usage dicts for stats
     accounting. The confidence gate is applied later, at consumption in
@@ -255,7 +280,7 @@ async def run_extract_stage(
 
     # Persist the raw per-source LLM extractions for provenance/debugging.
     # (STRING partners are persisted with the merged record, not here.)
-    raw_path = Path("outputs/raw") / f"{gene}_raw.json"
+    raw_path = RUN_DIR / "raw" / f"{gene}_raw.json"
     with open(raw_path, "w", encoding="utf-8") as f:
         json.dump(
             {"pubmed": pubmed_ann, "uniprot": uniprot_ann, "opentargets": ot_ann},
@@ -702,8 +727,12 @@ async def run_gene_with_retry(
 
 
 async def main() -> None:
-    setup_logging(config.log_level)
-    Path("outputs/raw").mkdir(parents=True, exist_ok=True)
+    (RUN_DIR / "raw").mkdir(parents=True, exist_ok=True)
+    setup_logging(config.log_level, log_dir=RUN_DIR)
+    # Point outputs/latest at this run so downstream tools (visualize_network.py,
+    # etc.) can always find the most recent run's artifacts.
+    _update_latest_pointer(RUN_DIR)
+    log.info("Run output directory: %s", RUN_DIR)
     # Start each run with a fresh annotations log so re-runs don't accumulate.
     ANNOTATIONS_JSONL.unlink(missing_ok=True)
 
@@ -771,17 +800,18 @@ async def main() -> None:
         log.warning("Failed genes (excluded from output): %s", failed)
 
     # Write final merged JSON
-    with open("outputs/final_annotations.json", "w", encoding="utf-8") as f:
+    final_json_path = RUN_DIR / "final_annotations.json"
+    with open(final_json_path, "w", encoding="utf-8") as f:
         json.dump(final_annotations, f, indent=2)
     log.info(
-        "Wrote %d annotations → outputs/final_annotations.json", len(final_annotations)
+        "Wrote %d annotations → %s", len(final_annotations), final_json_path
     )
 
     # Build network and prioritize
     G = build_target_network(final_annotations)
-    save_network(G, "outputs/target_network.gpickle")
+    save_network(G, str(RUN_DIR / "target_network.gpickle"))
     scores = compute_priority_scores(G, config.disease_context)
-    save_prioritized_tsv(scores, "outputs/prioritized_targets.tsv")
+    save_prioritized_tsv(scores, str(RUN_DIR / "prioritized_targets.tsv"))
     log.info("Top 5 targets: %s", [s["gene"] for s in scores[:5]])
 
     # Prune stale cache files (old keys left by prior synonym/config changes) so
@@ -802,7 +832,13 @@ async def main() -> None:
     # names, so the next run's fuzzy canonicalization picks them up.
     if config.auto_update_synonyms:
         log.info("AUTO_UPDATE_SYNONYMS=true — updating refs/pathway_synonyms.json")
-        subprocess.run([sys.executable, "scripts/build_synonyms.py"], check=False)
+        # Pin the child to THIS run's directory: a fresh process would otherwise
+        # mint a new run_dir timestamp and read the wrong (empty) run.
+        subprocess.run(
+            [sys.executable, "scripts/build_synonyms.py"],
+            check=False,
+            env={**os.environ, "RUN_DIR": str(RUN_DIR)},
+        )
 
     # Run report: gene outcomes, pathway quality, LLM usage, cost, runtime.
     stats.print_report(final_annotations)

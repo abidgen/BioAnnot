@@ -13,6 +13,7 @@ validated to sum to 1.0 on construction.
 """
 
 from dataclasses import dataclass, field
+import datetime
 import os
 
 
@@ -105,6 +106,23 @@ class PipelineConfig:
         default_factory=lambda: int(os.getenv("LAYOUT_SEED", "42")))
     layout_k: float = field(
         default_factory=lambda: float(os.getenv("LAYOUT_K", "2.5")))
+
+    # Per-run output directory. Every run writes its artifacts (raw extractions,
+    # annotations.jsonl, final_annotations.json, target_network.gpickle,
+    # prioritized_targets.tsv, pipeline.log, batch_id.txt) into a timestamped
+    # subdirectory so runs never overwrite each other. Set RUN_DIR to pin a run to
+    # a specific directory (e.g. to resume/append to an existing one). The resume
+    # cache is deliberately NOT under here — it lives at cache_dir and is shared
+    # across runs so caching survives from one run to the next.
+    run_dir: str = field(
+        default_factory=lambda: os.getenv(
+            "RUN_DIR",
+            os.path.join(
+                "outputs", "runs",
+                datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+            ),
+        )
+    )
 
     # On-disk resume cache (skip a gene's stages if a prior run cached it)
     enable_cache: bool = field(
