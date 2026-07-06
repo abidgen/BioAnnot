@@ -383,7 +383,9 @@ async def run_enrich_stage(
 #
 # Bump EXTRACT_PROMPT_VERSION whenever the extractor's prompt or output contract
 # changes in a way that should invalidate cached raw extractions.
-EXTRACT_PROMPT_VERSION = "1"
+#   v2: extraction pinned to temperature=0 (src/extractor.py) — faithful, reproducible
+#       decoding; invalidates v1 raw caches so extractions regenerate under temp=0.
+EXTRACT_PROMPT_VERSION = "2"
 
 RAW_CACHE_SUBDIR = "raw"
 FINAL_CACHE_SUBDIR = "final"

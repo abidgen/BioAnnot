@@ -74,10 +74,10 @@ refs/pathway_synonyms.json ┘
 All fetchers are async with retry; a source with no entry returns `{}` and is simply dropped.
 
 ### 3.2 Extract (`run_extract_stage`)
-One LLM call **per source** (`EXTRACTION_MODEL`, default `claude-opus-4-8`) with the
-`annotate_target` tool **forced** via `tool_choice`, so output is always structured. Input text
-is truncated to ~3000 words. The system prompt embeds the disease context. Every successful
-per-source extraction is returned **unfiltered** and persisted to
+One LLM call **per source** (`EXTRACTION_MODEL`, default `claude-opus-4-8`) at
+**`temperature=0`** with the `annotate_target` tool **forced** via `tool_choice`, so output is
+always structured. Input text is truncated to ~3000 words. The system prompt embeds the disease
+context. Every successful per-source extraction is returned **unfiltered** and persisted to
 `{run}/raw/{gene}_raw.json` (in the run's timestamped directory) for provenance.
 
 > PMIDs are only ever passed through from the validated fetcher list — the model is never
@@ -91,8 +91,9 @@ threshold takes effect on a re-merge (it is part of `full_key`) without re-extra
 
 ### 3.4 Merge (`merge_annotations`)
 - **Single source** → returned directly (no LLM call), with pathway canonicalization applied.
-- **Multiple sources** → one LLM call (`MERGE_MODEL`, default `claude-sonnet-4-6`) with the
-  same forced tool, reconciling conflicts by evidence strength and source priority
+- **Multiple sources** → one LLM call (`MERGE_MODEL`, default `claude-sonnet-4-6`) at
+  **`temperature=0`** with the same forced tool, reconciling conflicts by evidence strength and
+  source priority
   (UniProt > OpenTargets > PubMed for function; Reactome > OpenTargets > PubMed for pathways),
   unioning interactors, and noting context-dependence for conflicting disease roles.
 - After the model returns, pathway names are canonicalized and `source_pmids` are **unioned
@@ -214,9 +215,14 @@ Grouped: models (`EXTRACTION_MODEL`, `MERGE_MODEL`, `MAX_TOKENS`); pipeline
 
 These shape how outputs should be interpreted. Several were confirmed by live end-to-end runs.
 
-1. **LLM non-determinism.** Extraction and merge are generative; pathway sets, the
-   `NON-CANONICAL` count, and even the exact ranking shift between runs on the same genes.
-   Treat any single run as a sample, not ground truth.
+1. **LLM non-determinism (reduced, not eliminated).** Extraction and merge are generative but
+   both run at **`temperature=0`** (greedy), so most run-to-run drift is gone. temp-0 is
+   *near*-deterministic, not bit-identical, so pathway sets, the `NON-CANONICAL` count, and
+   rarely the exact ranking can still shift between reruns on the same genes. In normal
+   operation the two-layer cache also freezes results — variance only appears when a stage
+   actually re-runs (a `FORCE_RERUN`/`EXTRACT_PROMPT_VERSION` bump for extraction; any
+   final-cache-invalidating change for merge). Treat any single run as a (now much more stable)
+   sample, not ground truth.
 2. **"Re-merge" is not zero-cost for multi-source genes.** Canonicalization is local, but it
    runs *after* the merge LLM call, and merge calls the model for any gene with ≥2 sources (the
    common case). So a synonym-edit rerun re-bills merge tokens; only single-source genes
@@ -240,8 +246,9 @@ These shape how outputs should be interpreted. Several were confirmed by live en
 8. **Network centrality needs scale (≥ ~20 genes).** A 5-gene graph is too sparse for
    betweenness/degree to carry signal; the network terms of the composite are noisy at small N.
 9. **`EXTRACT_PROMPT_VERSION` is a manual lever.** It is *not* derived from the prompt text — if
-   you change the extractor prompt without bumping the constant, stale raw extractions are
-   reused.
+   you change the extractor prompt (or decoding, e.g. temperature) without bumping the constant,
+   stale raw extractions are reused. Currently `"2"` (v2 = extraction pinned to `temperature=0`;
+   the bump invalidated v1 raw caches so extractions regenerate under greedy decoding).
 10. **GTEx flags are a prompt for review, not a verdict.** High normal-tissue expression can be
     on-target biology (e.g. a tissue-specific TF like FOXF1 in lung). If the GTEx table can't
     be downloaded, the filter degrades to "no concern" (no flags) rather than failing.

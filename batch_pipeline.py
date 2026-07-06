@@ -120,6 +120,9 @@ def main() -> None:
             "params": {
                 "model": BATCH_MODEL,
                 "max_tokens": MAX_TOKENS,
+                # Pin to 0 to match the interactive extractor (src/extractor.py):
+                # faithful structured extraction, reproducible across reruns.
+                "temperature": 0.0,
                 "tools": ANNOTATION_TOOL,
                 "tool_choice": {"type": "tool", "name": "annotate_target"},
                 "system": system_blocks,

@@ -122,6 +122,15 @@ marked `cache_control: ephemeral`, so after the first call the shared prefix is 
 cache rather than re-billed on every gene. The models are env-configurable
 (`EXTRACTION_MODEL`, `MERGE_MODEL`) rather than hardcoded.
 
+Both stages also run at **`temperature=0`** (greedy decoding). Extraction and merge are
+faithful, evidence-grounded tasks — pull structured facts from the source text, reconcile them
+across sources — so deterministic decoding is both the correct default and what keeps results
+reproducible across reruns (a cold `FORCE_RERUN` re-runs extraction; an
+`EXTRACT_PROMPT_VERSION` bump or a final-cache-invalidating config change re-runs merge). The
+interactive path sets this in `src/extractor.py`/`src/merger.py` via the shared
+`src/llm.py:call_tool(temperature=…)` helper; the Batch path sets it per request in
+`batch_pipeline.py`. Note temp-0 is near-deterministic (greedy), not a bit-identical guarantee.
+
 ## Quick Start
 
 From a clean checkout:
@@ -704,10 +713,15 @@ The following extension is still planned:
 
 ## Known Limitations
 
-- **LLM non-determinism causes run-to-run variance.** The extractor and merger are
-  generative, so repeated runs on the same genes can return different pathway sets and
-  slightly different phrasing. Counts (e.g. number of `NON-CANONICAL` flags) and even the
-  exact ranking can shift between runs; treat individual runs as samples, not fixed truth.
+- **LLM non-determinism causes (reduced) run-to-run variance.** The extractor and merger are
+  generative. Both now run at `temperature=0` (greedy decoding), which removes most drift —
+  but temp-0 is *near*-deterministic, not bit-identical, so repeated runs on the same genes can
+  still occasionally return a different pathway or slightly different phrasing. Counts (e.g.
+  number of `NON-CANONICAL` flags) and, rarely, the exact ranking can shift; treat individual
+  runs as (now much more stable) samples, not fixed truth. In normal operation the two-layer
+  cache also freezes results, so variance only surfaces when a stage actually re-runs (a
+  `FORCE_RERUN`/`EXTRACT_PROMPT_VERSION` bump for extraction, or any final-cache-invalidating
+  change for merge).
 
 - **Remaining `NON-CANONICAL` flags are mostly informal signaling names.** Canonicalization
   now goes well beyond exact matching — case-insensitive comparison, Reactome `(R-HSA-…)`

@@ -65,7 +65,8 @@ model fills in `functions`, `cellular_states`, `pathways`,
 `disease_associations` (each with `role` + `evidence_strength`), `interactors`,
 `druggability_notes`, and a `confidence` number.
 
-- **Model:** `claude-opus-4-8` for extraction.
+- **Model:** `claude-opus-4-8` for extraction, at **`temperature=0`** (greedy) — faithful
+  structured extraction is a deterministic task, and pinning it keeps a cold rerun reproducible.
 - **System prompt** (abridged): *"senior biomedical annotation scientist…
   extract only what the text states, do not import outside knowledge…
   use exact Reactome pathway names… never invent interactors or PMIDs."*
@@ -129,7 +130,9 @@ For **FOXF1**: PubMed (0.88) passes; UniProt (0.55) and OpenTargets (0.55) are
 ## 4. Merge — reconcile surviving sources into one record
 
 `src/merger.py`, model **`claude-sonnet-4-6`** (cheaper; merge is easier than
-extraction), again with the forced `annotate_target` tool.
+extraction), again with the forced `annotate_target` tool, at **`temperature=0`** (greedy) so a
+re-merge — which any final-cache-invalidating config change triggers — reconciles the same
+sources the same way instead of drifting.
 
 - **Single-source genes (like FOXF1):** no reconciliation needed — the merger
   short-circuits, returns the record with `source_count=1`, and just validates
@@ -405,7 +408,7 @@ names), and builds the network/TSV exactly as the standard pipeline.
  │   └────┬────┴────┬─────┴─────┬──────┴────┬────┘                         │
  │        │         │           │           │                              │
  │        ▼ validate_pmids()    │           │                              │
- │   2. EXTRACT  (claude-opus-4-8, forced annotate_target tool)            │
+ │   2. EXTRACT  (claude-opus-4-8, temp=0, forced annotate_target tool)    │
  │        │         │           │           │                              │
  │     conf 0.88  conf 0.55   conf 0.55     │ ← LLM self-rates per rubric  │
  │        │         │           │           │                              │
@@ -414,7 +417,7 @@ names), and builds the network/TSV exactly as the standard pipeline.
  │     KEEP ✓    DROP ✗      DROP ✗         │                              │
  │        │                                 │                              │
  │        ▼                                 │                              │
- │   4. MERGE  (claude-sonnet-4-6)  ◄───── STRING / GTEx / CellxGene join  │
+ │   4. MERGE  (claude-sonnet-4-6, temp=0) ◄─── STRING / GTEx / CellxGene  │
  │     source_count=1 · pathway canonicity check (NON-CANONICAL: …)        │
  │        │                                                                │
  │        ▼   {run}/final_annotations.json                                 │

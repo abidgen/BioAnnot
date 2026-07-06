@@ -229,6 +229,11 @@ async def extract_from_text(
         tool_name="annotate_target",
         max_tokens=MAX_TOKENS,
         label=f"extract_from_text({gene})",
+        # Pin to 0: extraction is a faithful structured-extraction task (pull
+        # grounded facts from the source text), so greedy decoding is both the
+        # correct default and what keeps a cold rerun (FORCE_RERUN / prompt-version
+        # bump) reproducible. Mirrors the merge call in src/merger.py.
+        temperature=0.0,
     )
 
     annotation = dict(annotation_input)
