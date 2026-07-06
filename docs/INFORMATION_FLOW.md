@@ -104,7 +104,8 @@ padding a sparse record.
 The model rated the dense PubMed text high (0.88) and the thin UniProt/OpenTargets
 text low (0.55) — exactly as the rubric intends.
 
-Raw per-source records are saved to `outputs/raw/FOXF1_raw.json`.
+Raw per-source records are saved to `{run}/raw/FOXF1_raw.json`, where `{run}` is this run's
+timestamped directory `outputs/runs/{timestamp}/` (also reachable as `outputs/latest/`).
 
 ---
 
@@ -178,8 +179,8 @@ see §7):
 - **CellxGene** → `cellxgene_expression` (top cell types: pericyte, endothelial,
   …; 170 cell types total).
 
-Result is written to `outputs/final_annotations.json` (and appended to
-`annotations.jsonl`). FOXF1's merged record: 8 functions, 8 pathways
+Result is written to `{run}/final_annotations.json` (and appended to
+`{run}/annotations.jsonl`). FOXF1's merged record: 8 functions, 8 pathways
 (1 non-canonical), 9 disease associations, 9 interactors unioned with 10 STRING
 partners, `confidence: 0.88`.
 
@@ -284,7 +285,7 @@ nodes):
 
 Centrality (betweenness, degree) is computed on the **undirected projection**
 `nx.Graph(G)` so edge direction/multiplicity don't distort it. Saved to
-`outputs/target_network.gpickle`.
+`{run}/target_network.gpickle`.
 
 ---
 
@@ -320,7 +321,7 @@ tissues (flagged), so its composite is multiplied by 0.75; BRCA1 is not flagged
 1.0** in the composite, so being "even more cancer-associated" gives TP53 no
 extra credit.
 
-### Final ranking (`outputs/prioritized_targets.tsv`)
+### Final ranking (`{run}/prioritized_targets.tsv`)
 
 ```
 1. BRCA1  0.580   (not safety-flagged)
@@ -373,11 +374,12 @@ cached / remerged / pruned), pathway quality, and LLM usage: input/output tokens
 rules call for before scaling to a batch run.
 
 ### Post-processing (separate commands, not part of `python pipeline.py`)
-- **Visualization** — `python visualize_network.py` reads the existing outputs and
-  writes `outputs/plots/` (target network, per-gene score breakdown, pathway
+- **Visualization** — `python visualize_network.py` reads the latest run's outputs
+  (resolved via `outputs/latest`, or `RUN_DIR` for a specific run) and writes that
+  run's `plots/` subdirectory (target network, per-gene score breakdown, pathway
   heatmap, CellxGene expression). It does **not** re-run the pipeline.
 - **Cytoscape export** — `scripts/export_cytoscape.py` (and `visualize_network.py`)
-  emit `target_network_cytoscape.{json,cx2}` for Cytoscape.
+  emit `target_network_cytoscape.{json,cx2}` into that same run directory for Cytoscape.
 
 ### Batch variant — `batch_pipeline.py`
 For ≥ 50 genes: fetches all sources synchronously, submits one **Anthropic Batch
@@ -407,7 +409,7 @@ names), and builds the network/TSV exactly as the standard pipeline.
  │        │         │           │           │                              │
  │     conf 0.88  conf 0.55   conf 0.55     │ ← LLM self-rates per rubric  │
  │        │         │           │           │                              │
- │        ▼─────────▼───────────▼           │   outputs/raw/FOXF1_raw.json │
+ │        ▼─────────▼───────────▼           │   {run}/raw/FOXF1_raw.json   │
  │   3. FILTER  (keep conf ≥ 0.65)          │                              │
  │     KEEP ✓    DROP ✗      DROP ✗         │                              │
  │        │                                 │                              │
@@ -415,7 +417,7 @@ names), and builds the network/TSV exactly as the standard pipeline.
  │   4. MERGE  (claude-sonnet-4-6)  ◄───── STRING / GTEx / CellxGene join  │
  │     source_count=1 · pathway canonicity check (NON-CANONICAL: …)        │
  │        │                                                                │
- │        ▼   outputs/final_annotations.json                               │
+ │        ▼   {run}/final_annotations.json                                 │
  └────────┼────────────────────────────────────────────────────────────────┘
           │  (all 5 genes merged)
                 ▼
@@ -427,7 +429,7 @@ names), and builds the network/TSV exactly as the standard pipeline.
                 + 0.10·drug + 0.15·cellx) × confidence × safety_penalty
           │
                 ▼
-   outputs/prioritized_targets.tsv
+   {run}/prioritized_targets.tsv   ({run} = outputs/runs/{timestamp}/, aka outputs/latest/)
    ┌─────────────────────────────────────┐
    │ 1 BRCA1 0.580   (no penalty)        │
    │ 2 TP53  0.466   (×0.75 safety)      │

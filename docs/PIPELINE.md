@@ -20,8 +20,10 @@ Two ideas run through everything:
 - **LLM where judgement is needed, lookups where facts exist.** Extraction and merge use the
   Anthropic API with forced tool use; STRING / GTEx / CellxGene are deterministic lookups that
   bypass the LLM and attach directly to the record.
-- **Disk is the source of truth.** Every stage writes to `outputs/`. Re-runs resume from a
-  two-layer cache rather than recomputing.
+- **Disk is the source of truth.** Every stage writes to the run's timestamped directory,
+  `outputs/runs/{timestamp}/` (with `outputs/latest` pointing at it). Re-runs resume from a
+  two-layer cache — shared across runs under `outputs/cache/`, outside the per-run directory —
+  rather than recomputing.
 
 ---
 
@@ -76,7 +78,7 @@ One LLM call **per source** (`EXTRACTION_MODEL`, default `claude-opus-4-8`) with
 `annotate_target` tool **forced** via `tool_choice`, so output is always structured. Input text
 is truncated to ~3000 words. The system prompt embeds the disease context. Every successful
 per-source extraction is returned **unfiltered** and persisted to
-`outputs/raw/{gene}_raw.json` for provenance.
+`{run}/raw/{gene}_raw.json` (in the run's timestamped directory) for provenance.
 
 > PMIDs are only ever passed through from the validated fetcher list — the model is never
 > trusted to produce citations.
@@ -155,8 +157,9 @@ The five weights live in `config` and are **validated to sum to 1.0 at startup**
 
 ## 5. Two-layer cache
 
-Two independent layers under `CACHE_DIR` (`outputs/cache/`), so curating pathway
-canonicalization refreshes output **without re-fetching/re-extracting**:
+Two independent layers under `CACHE_DIR` (`outputs/cache/`, shared across runs — not inside
+the per-run directory), so curating pathway canonicalization refreshes output **without
+re-fetching/re-extracting**:
 
 | Layer | Path | Key digests | Invalidated by |
 |---|---|---|---|

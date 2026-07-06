@@ -86,8 +86,9 @@ inputs/target_genes.txt
 └──────────────────────────────────────────────────────┘
         │
         ▼
-   outputs/  (annotations.jsonl, final_annotations.json,
+   outputs/runs/{timestamp}/  (annotations.jsonl, final_annotations.json,
               target_network.gpickle, prioritized_targets.tsv)
+              └─ outputs/latest ─▶ this run
 ```
 
 The orchestrator [`pipeline.py`](pipeline.py) drives this flow with a concurrency limit of
@@ -97,8 +98,13 @@ consults a **two-layer resume cache** (`outputs/cache/`): a final-layer hit reus
 enriched record, while a raw-layer hit replays only merge + enrich from cached extractions —
 so editing the pathway synonym map skips all fetch + extraction calls (the merge model still
 runs for multi-source genes; see [Resume cache](#resume-cache)).
-All intermediate results are written to disk under `outputs/` — that directory is the single
-source of truth between stages. STRING is the one fetcher whose
+Each run's artifacts are written to a **timestamped directory**,
+`outputs/runs/{YYYYMMDD_HHMMSS}/`, so consecutive runs never overwrite one another;
+`outputs/latest` is a symlink kept pointing at the most recent run, and reader tools
+(visualization, Cytoscape export, synonym rebuild) resolve it automatically (override with
+`RUN_DIR`; see [Run directories](#run-directories)). The **resume cache is shared** across
+runs and therefore lives outside the timestamped directory, at `outputs/cache/`. Within a run
+that directory is the single source of truth between stages. STRING is the one fetcher whose
 output is factual rather than free text, so its PPI partners **bypass the LLM extractor and
 merger** and are attached to each merged record directly, feeding `network.py` as
 `string_interaction` edges (and satellite interactor nodes). Likewise, the GTEx safety
@@ -165,8 +171,9 @@ Fill these into your `.env` file (never commit it — it is git-ignored):
 | `CENSUS_TISSUE` | Optional | `tissue_general` to query for single-cell expression (default `lung`) | — |
 | `CENSUS_MIN_CELLS` | Optional | Drop cell types with fewer cells than this (default `50`) | — |
 | `CENSUS_CACHE_DIR` | Optional | Where per-(gene, tissue) Census results are cached (default `refs/census_cache/`) | — |
+| `RUN_DIR` | Optional | Directory this run writes its artifacts to (default `outputs/runs/{timestamp}/`, freshly timestamped per run). Set it to pin a run to a specific directory, or — for a reader tool — to load a specific past run instead of `outputs/latest` | — |
 | `ENABLE_CACHE` | Optional | Two-layer on-disk resume cache; re-runs skip already-computed work (default `true`) | — |
-| `CACHE_DIR` | Optional | Cache root; holds `raw/` (extractions) and `final/` (enriched records) (default `outputs/cache/`) | — |
+| `CACHE_DIR` | Optional | Cache root, **shared across runs** (not under the per-run directory); holds `raw/` (extractions) and `final/` (enriched records) (default `outputs/cache/`) | — |
 | `FORCE_RERUN` | Optional | Bypass **both** cache layers and recompute the whole chain; still rewrites both (default `false`) | — |
 | `FORCE_REMERGE` | Optional | Bypass the **final** layer only; replay merge + enrich from the raw cache (skips fetch + extract — merge model still runs for multi-source genes). Forces that replay even when nothing changed — synonym/reference edits already trigger it automatically via `full_key` (default `false`) | — |
 | `PRUNE_CACHE` | Optional | After a successful run, delete cache files whose keys no longer match the current config (old entries from prior synonym/config changes). Disable to keep stale files without disabling the cache. Skipped under `FORCE_RERUN` (default `true`) | — |
@@ -224,7 +231,9 @@ that rejects high-scoring wrong-gene siblings (e.g. "Signaling by BRCA1 mutants"
 string; anything that doesn't keeps the `NON-CANONICAL: ` prefix.
 
 The synonym map is built offline by [`scripts/build_synonyms.py`](scripts/build_synonyms.py),
-which scans `outputs/final_annotations.json` for NON-CANONICAL names and resolves each with a
+which scans the latest run's `final_annotations.json` (via `outputs/latest`, or the run named
+by `RUN_DIR` — which the pipeline sets when it invokes the script under
+`AUTO_UPDATE_SYNONYMS`) for NON-CANONICAL names and resolves each with a
 local-first cascade — exact, then fuzzy over the full reference, and only the genuinely
 ambiguous remainder goes to `SYNONYM_MODEL` in a single call (each name with its top
 candidates; the model's choice is validated against the reference before being kept). It is
@@ -236,10 +245,29 @@ have the pipeline refresh the map after each run so the next run's fuzzy step im
 python scripts/build_synonyms.py
 ```
 
+### Run directories
+
+Each run writes its artifacts to a **timestamped directory**,
+`outputs/runs/{YYYYMMDD_HHMMSS}/`, rather than overwriting flat files under `outputs/`. This
+keeps every run's `annotations.jsonl`, `final_annotations.json`, `target_network.gpickle`,
+`prioritized_targets.tsv`, per-source `raw/{gene}_raw.json`, `pipeline.log`, and (batch mode)
+`batch_id.txt` side by side, so results are comparable and reproducible across runs.
+
+After the directory is created, the pipeline updates `outputs/latest` — a relative symlink —
+to point at it (falling back to writing the path into `outputs/latest.txt` on filesystems
+without symlink support). Reader tools resolve which run to load in this order: `$RUN_DIR` if
+it names an existing directory → `outputs/latest` → `outputs/` (legacy/first-run fallback). So
+`python visualize_network.py` and `python scripts/export_cytoscape.py` operate on the newest
+run by default; set `RUN_DIR=outputs/runs/<ts>` to target a specific past run.
+
+The **resume cache is deliberately not** inside the per-run directory — it stays at
+`CACHE_DIR` (`outputs/cache/`, shared) so caching survives from one run to the next. Old run
+directories accumulate under `outputs/runs/`; prune them manually when no longer needed.
+
 ### Resume cache
 
 When `ENABLE_CACHE=true` (default), the pipeline keeps a **two-layer** on-disk cache under
-`CACHE_DIR` (`outputs/cache/`). Splitting the cache means that curating pathway annotations —
+`CACHE_DIR` (`outputs/cache/`), shared across runs (not under the per-run directory). Splitting the cache means that curating pathway annotations —
 editing the synonym map or the Reactome reference — refreshes the output **without** paying
 for fetch + extraction again.
 
@@ -373,31 +401,37 @@ bio-annotation-pipeline/
 ├── visualize_network.py        ← plots from existing outputs (no rerun)
 │
 └── outputs/                    ← auto-created at runtime
-    ├── raw/                    ← per-gene per-source raw extraction JSONs (provenance)
-    ├── cache/                  ← two-layer resume cache (git-ignored)
+    ├── cache/                  ← two-layer resume cache, SHARED across runs (git-ignored)
     │   ├── raw/                ← Layer 1: cached extractions, keyed by extract_key
     │   └── final/             ← Layer 2: enriched records, keyed by full_key
-    ├── annotations.jsonl       ← merged annotation per gene (newline-delimited JSON)
-    ├── final_annotations.json  ← full merged dict keyed by gene symbol
-    ├── target_network.gpickle  ← NetworkX graph
-    ├── target_network_cytoscape*.json / *.cx2  ← Cytoscape exports (after script)
-    ├── prioritized_targets.tsv ← ranked target table
-    └── plots/                  ← visualization PNGs (after visualize_network.py)
+    ├── latest ─▶ runs/{ts}     ← symlink to the most recent run
+    └── runs/
+        └── {YYYYMMDD_HHMMSS}/  ← one timestamped directory per run
+            ├── raw/                    ← per-gene per-source raw extraction JSONs (provenance)
+            ├── annotations.jsonl       ← merged annotation per gene (newline-delimited JSON)
+            ├── final_annotations.json  ← full merged dict keyed by gene symbol
+            ├── target_network.gpickle  ← NetworkX graph
+            ├── target_network_cytoscape*.json / *.cx2  ← Cytoscape exports (after script)
+            ├── prioritized_targets.tsv ← ranked target table
+            ├── pipeline.log            ← this run's log
+            └── plots/                  ← visualization PNGs (after visualize_network.py)
 ```
 
 ## Output Files
 
-All outputs land under `outputs/` and are regenerated on each run.
+Each run's outputs land in its own timestamped directory, `outputs/runs/{timestamp}/`, with
+`outputs/latest` pointing at the newest run. The paths below are shown relative to that run
+directory (i.e. `<run>/` means `outputs/runs/{timestamp}/`, reachable as `outputs/latest/`).
 
-- **`outputs/raw/{gene}_raw.json`** — the per-source annotation records (PubMed, UniProt,
+- **`<run>/raw/{gene}_raw.json`** — the per-source annotation records (PubMed, UniProt,
   OpenTargets) for one gene before merging. Useful for debugging where an annotation came
   from or why a source was dropped below the confidence threshold.
 
-- **`outputs/annotations.jsonl`** — one merged annotation per line (newline-delimited
+- **`<run>/annotations.jsonl`** — one merged annotation per line (newline-delimited
   JSON), appended as each gene completes. Convenient for streaming/`jq` processing and as
   an incremental record even if a later gene fails.
 
-- **`outputs/final_annotations.json`** — the full merged dictionary keyed by gene symbol,
+- **`<run>/final_annotations.json`** — the full merged dictionary keyed by gene symbol,
   written once at the end. This is the canonical structured result. Each value contains
   `functions`, `cellular_states`, `pathways` (non-canonical names prefixed
   `NON-CANONICAL: `), `disease_associations` (each with `role` and `evidence_strength`),
@@ -407,7 +441,7 @@ All outputs land under `outputs/` and are regenerated on each run.
   top 10 `{cell_type, mean_expr}` entries, and `cell_type_count`); the top measured cell
   types also appear in `cellular_states` with a `CellxGene: ` prefix.
 
-- **`outputs/prioritized_targets.tsv`** — the ranked target table, one row per gene sorted
+- **`<run>/prioritized_targets.tsv`** — the ranked target table, one row per gene sorted
   by `composite` descending. Columns: `gene`, `composite`, `betweenness`, `degree`,
   `disease_score`, `druggability_bonus`, `cellxgene_score`, `confidence`, `safety_flag`,
   `safety_penalty_applied`, `high_expression_tissues`, `max_tpm`, `pathways`,
@@ -425,7 +459,7 @@ All outputs land under `outputs/` and are regenerated on each run.
   (`safety_penalty_applied` records which). `disease_score` is capped at `1.0` inside the
   composite, though the raw uncapped value is still reported in its own column.
 
-- **`outputs/target_network.gpickle`** — the NetworkX graph (a `MultiDiGraph`) pickled to
+- **`<run>/target_network.gpickle`** — the NetworkX graph (a `MultiDiGraph`) pickled to
   disk. It holds the 5 (or however many) target nodes (`node_type="target"`, carrying the
   full annotation as attributes) plus satellite interactor nodes (`node_type="interactor"`)
   — the STRING partners of the targets, added so otherwise-isolated genes gain connectivity.
@@ -493,7 +527,7 @@ cache (no fetch/extract) and prunes the stale-key files left behind — note the
 ╚══════════════════════════════════════════════════════╝
 ```
 
-### One annotation (`outputs/final_annotations.json` → `FOXF1`, trimmed)
+### One annotation (`<run>/final_annotations.json` → `FOXF1`, trimmed)
 
 ```jsonc
 {
@@ -524,7 +558,7 @@ cache (no fetch/extract) and prunes the stale-key files left behind — note the
 }
 ```
 
-### Prioritized targets (`outputs/prioritized_targets.tsv`, selected columns)
+### Prioritized targets (`<run>/prioritized_targets.tsv`, selected columns)
 
 | gene | composite | betweenness | degree | disease_score | cellxgene_score | confidence | safety_flag |
 |---|---|---|---|---|---|---|---|
@@ -538,7 +572,7 @@ cache (no fetch/extract) and prunes the stale-key files left behind — note the
 also carries `druggability_bonus`, `safety_penalty_applied`, `high_expression_tissues`,
 `max_tpm`, `pathways`, and `disease_associations`.)
 
-### Plots (`python visualize_network.py` → `outputs/plots/`)
+### Plots (`python visualize_network.py` → `<run>/plots/`)
 
 | Target network | Per-gene score breakdown |
 |---|---|
@@ -575,21 +609,23 @@ and returns faster.
 python batch_pipeline.py
 ```
 
-The batch job ID is written to `outputs/batch_id.txt`; the script polls until the batch
-ends, then collects results and runs the same merge → network → output stages as the
-standard pipeline.
+The batch job ID is written to `<run>/batch_id.txt` (in the run's timestamped directory,
+reachable as `outputs/latest/batch_id.txt`); the script polls until the batch ends, then
+collects results and runs the same merge → network → output stages as the standard pipeline,
+writing into the same per-run directory.
 
 ## Visualization
 
-After a pipeline run has produced `outputs/target_network.gpickle` and
-`outputs/prioritized_targets.tsv`, generate plots with:
+After a pipeline run has produced `target_network.gpickle` and `prioritized_targets.tsv` in
+its run directory, generate plots with:
 
 ```bash
 python visualize_network.py
 ```
 
-This reads existing outputs only (no pipeline rerun) and writes four PNGs to
-`outputs/plots/`:
+This reads the most recent run's outputs by default (via `outputs/latest`; set `RUN_DIR` to
+pick a specific past run) — no pipeline rerun — and writes four PNGs to that run's `plots/`
+subdirectory (`outputs/latest/plots/`):
 
 - **`target_network.png`** — the target graph with nodes colored and sized by composite
   score (red = high, blue = low), edges colored by type (green = pathway co-membership,
@@ -605,14 +641,16 @@ This reads existing outputs only (no pipeline rerun) and writes four PNGs to
 
 ## Cytoscape Export
 
-[`scripts/export_cytoscape.py`](scripts/export_cytoscape.py) converts an existing
-`outputs/target_network.gpickle` into Cytoscape-importable files (no pipeline rerun):
+[`scripts/export_cytoscape.py`](scripts/export_cytoscape.py) converts the most recent run's
+`target_network.gpickle` into Cytoscape-importable files (no pipeline rerun; resolves the run
+via `outputs/latest`, or `RUN_DIR` for a specific one):
 
 ```bash
 python scripts/export_cytoscape.py
 ```
 
-It writes four files — Cytoscape.js JSON and CX2 (for NDEx / Cytoscape), each in a **full**
+It writes four files into that run's directory — Cytoscape.js JSON and CX2 (for NDEx /
+Cytoscape), each in a **full**
 variant (all nodes, including STRING satellite interactors) and a **targets-only** variant
 (target nodes and the edges among them, for clean presentation): `target_network_cytoscape.json`,
 `target_network_cytoscape_targets.json`, `target_network_cytoscape.cx2`, and
@@ -646,7 +684,7 @@ and the run-stats/cost accounting.
 Four enrichment/output layers are now **implemented**:
 
 - **STRING PPI enrichment** (`src/fetchers/string_db.py`) — see the Architecture section and
-  the `string_interaction` edges in `outputs/target_network.gpickle`.
+  the `string_interaction` edges in each run's `target_network.gpickle`.
 - **GTEx safety filter** (`src/filters/gtex_safety.py`) — flags genes highly expressed in
   sensitive normal tissues (>10 TPM in ≥3 tissues) and applies a 0.75 composite penalty in
   `network.py`. The GTEx v8 median-TPM table is auto-downloaded and cached at

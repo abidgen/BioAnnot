@@ -45,6 +45,10 @@ outputs/plots/
 outputs/plots/
 outputs/run_console.log
 outputs/cache/
+# Per-run timestamped output directories and the pointer to the newest run
+outputs/runs/
+outputs/latest
+outputs/latest.txt
 scripts/build_presentation.js
 scripts/build_short_presentation.js
 scripts/rezip.py
