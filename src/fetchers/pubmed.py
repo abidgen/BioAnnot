@@ -37,8 +37,17 @@ def _as_list(value) -> list:
 
 
 @retry
-async def search_pmids(gene: str, max_results: int = config.pubmed_max_results) -> list[str]:
+async def search_pmids(
+    gene: str,
+    max_results: int = config.pubmed_max_results,
+    limit: int = config.pubmed_extract_limit,
+) -> list[str]:
     """Search PubMed for PMIDs related to a gene in a disease context.
+
+    Fetches up to ``max_results`` candidates ranked by relevance (sort=relevance,
+    not the ESearch default of most-recent), validates them, and returns the best
+    ``limit``. The candidate pool is deliberately deeper than ``limit`` so that
+    validate_pmids() drops don't erode the top relevance-ranked hits.
 
     Returns validated PMID strings (digits only, 7-8 chars).
     """
@@ -50,6 +59,9 @@ async def search_pmids(gene: str, max_results: int = config.pubmed_max_results) 
         "term": term,
         "retmax": str(max_results),
         "retmode": "json",
+        # Rank by relevance so the abstracts that survive the extractor's
+        # ~3000-word truncation are the most on-target, not merely the newest.
+        "sort": "relevance",
         **_entrez_params(),
     }
 
@@ -59,8 +71,11 @@ async def search_pmids(gene: str, max_results: int = config.pubmed_max_results) 
         data = resp.json()
 
     idlist = data.get("esearchresult", {}).get("idlist", [])
-    pmids = validate_pmids(idlist)
-    log.info("search_pmids(%s): %d PMIDs after validation", gene, len(pmids))
+    pmids = validate_pmids(idlist)[:limit]
+    log.info(
+        "search_pmids(%s): %d PMIDs after validation (pool=%d, limit=%d)",
+        gene, len(pmids), max_results, limit,
+    )
     return pmids
 
 

@@ -385,7 +385,10 @@ async def run_enrich_stage(
 # changes in a way that should invalidate cached raw extractions.
 #   v2: extraction pinned to temperature=0 (src/extractor.py) — faithful, reproducible
 #       decoding; invalidates v1 raw caches so extractions regenerate under temp=0.
-EXTRACT_PROMPT_VERSION = "2"
+#   v3: PubMed search switched to sort=relevance and a 50-deep pool sliced to the best
+#       20 (src/fetchers/pubmed.py) — the fetched abstract set changes, so v2 raw caches
+#       must regenerate against the new content.
+EXTRACT_PROMPT_VERSION = "3"
 
 RAW_CACHE_SUBDIR = "raw"
 FINAL_CACHE_SUBDIR = "final"
@@ -423,7 +426,8 @@ def make_extract_key(gene: str, config: PipelineConfig) -> str:
     """Cache key for the raw extraction layer (fetch + extract inputs only).
 
     Digests the gene, the disease context (which shapes the PubMed query and the
-    extractor system prompt), the extraction model, the PubMed depth, and the
+    extractor system prompt), the extraction model, the PubMed candidate-pool depth
+    and extract limit, the extractor's word-truncation budget, and the
     extraction-prompt version. Deliberately excludes the synonym map, the Reactome
     reference, and every merge/enrich parameter so synonym/reference edits leave
     the raw layer valid.
@@ -440,6 +444,8 @@ def make_extract_key(gene: str, config: PipelineConfig) -> str:
         config.disease_context,
         config.extraction_model,
         str(config.pubmed_max_results),
+        str(config.pubmed_extract_limit),
+        str(config.extraction_max_words),
         EXTRACT_PROMPT_VERSION,
     ])
     return hashlib.md5(components.encode()).hexdigest()[:12]

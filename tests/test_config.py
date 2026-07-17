@@ -9,7 +9,9 @@ def test_config_defaults():
     assert config.fuzzy_threshold == 85
     assert config.safety_penalty == 0.75
     assert config.confidence_threshold == 0.65
-    assert config.pubmed_max_results == 20
+    assert config.pubmed_max_results == 50
+    assert config.pubmed_extract_limit == 20
+    assert config.extraction_max_words == 5000
     assert config.enable_cellxgene == True
 
 def test_config_env_override(monkeypatch):

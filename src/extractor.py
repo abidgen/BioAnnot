@@ -3,7 +3,7 @@
 Rules (per CLAUDE.md Step 5):
 - Always use the extraction model and force the annotate_target tool.
 - Never hallucinate PMIDs — only pass through IDs the fetcher returned.
-- Truncate input text to ~3000 words before sending.
+- Truncate input text to config.extraction_max_words before sending.
 - Log token usage for every API call.
 """
 
@@ -27,7 +27,7 @@ log = logging.getLogger("bio_annot.extractor")
 # Model and token budget are centralized in src.config (env-configurable).
 EXTRACTION_MODEL = config.extraction_model
 
-MAX_INPUT_WORDS = 3000
+MAX_INPUT_WORDS = config.extraction_max_words
 MAX_TOKENS = config.max_tokens
 
 # Detailed, static base prompt. Kept long and stable so that, together with the

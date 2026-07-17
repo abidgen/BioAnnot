@@ -26,12 +26,25 @@ class PipelineConfig:
         default_factory=lambda: os.getenv("MERGE_MODEL", "claude-sonnet-4-6"))
     max_tokens: int = field(
         default_factory=lambda: int(os.getenv("MAX_TOKENS", "4096")))
+    # Word budget the extractor truncates concatenated source text to before the
+    # LLM call. ~5000 words ≈ 20 abstracts, matching pubmed_extract_limit so the
+    # full relevance-ranked slice is actually seen rather than cut off.
+    extraction_max_words: int = field(
+        default_factory=lambda: int(os.getenv("EXTRACTION_MAX_WORDS", "5000")))
 
     # Pipeline
     confidence_threshold: float = field(
         default_factory=lambda: float(os.getenv("CONFIDENCE_THRESHOLD", "0.65")))
+    # Candidate pool depth for the ESearch query (retmax). Fetched relevance-first,
+    # then sliced to pubmed_extract_limit — a pool deeper than the limit buffers
+    # against validate_pmids() drops so the top relevant hits survive.
     pubmed_max_results: int = field(
-        default_factory=lambda: int(os.getenv("PUBMED_MAX_RESULTS", "20")))
+        default_factory=lambda: int(os.getenv("PUBMED_MAX_RESULTS", "50")))
+    # How many validated, relevance-ranked PMIDs actually reach the extractor.
+    # Sized to extraction_max_words (~5000 words ≈ 20 abstracts) so the full slice
+    # is seen; a deeper set past this would be cut off by truncation.
+    pubmed_extract_limit: int = field(
+        default_factory=lambda: int(os.getenv("PUBMED_EXTRACT_LIMIT", "20")))
     semaphore_limit: int = field(
         default_factory=lambda: int(os.getenv("SEMAPHORE_LIMIT", "3")))
     log_level: str = field(
