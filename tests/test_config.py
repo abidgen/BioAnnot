@@ -7,7 +7,8 @@ def test_config_defaults():
     assert config.extraction_model == "claude-opus-4-8"
     assert config.merge_model == "claude-sonnet-4-6"
     assert config.fuzzy_threshold == 85
-    assert config.safety_penalty == 0.75
+    assert config.gtex_tier1_penalty == 0.60
+    assert config.gtex_tier2_penalty == 0.80
     assert config.confidence_threshold == 0.65
     assert config.pubmed_max_results == 50
     assert config.pubmed_extract_limit == 20
@@ -17,11 +18,18 @@ def test_config_defaults():
 def test_config_env_override(monkeypatch):
     monkeypatch.setenv("FUZZY_THRESHOLD", "90")
     monkeypatch.setenv("EXTRACTION_MODEL", "claude-sonnet-4-6")
-    monkeypatch.setenv("SAFETY_PENALTY", "0.5")
+    monkeypatch.setenv("CONFIDENCE_THRESHOLD", "0.5")
     config = PipelineConfig()
     assert config.fuzzy_threshold == 90
     assert config.extraction_model == "claude-sonnet-4-6"
-    assert config.safety_penalty == 0.5
+    assert config.confidence_threshold == 0.5
+
+def test_gtex_penalty_env_override(monkeypatch):
+    monkeypatch.setenv("GTEX_TIER1_PENALTY", "0.5")
+    monkeypatch.setenv("GTEX_TIER2_PENALTY", "0.9")
+    config = PipelineConfig()
+    assert config.gtex_tier1_penalty == 0.5
+    assert config.gtex_tier2_penalty == 0.9
 
 def test_config_weight_validation_passes():
     config = PipelineConfig()

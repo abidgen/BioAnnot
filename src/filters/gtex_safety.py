@@ -29,9 +29,11 @@ GTEX_URL = (
 )
 CACHE_PATH = Path("refs/gtex_median_tpm.gct.gz")
 
-# Sensitive normal tissues: high expression here raises a safety concern for a
-# therapeutic target. Names must match GTEx column headers exactly.
-SENSITIVE_TISSUES = {
+# Two-tier normal-tissue safety model. Names must match GTEx column headers exactly.
+#
+# TIER 1 — vital organs: expression in any ONE of these above the (low) vital
+# threshold is a hard safety flag; damaging these tissues is poorly tolerated.
+TIER1_VITAL_TISSUES = {
     "Brain - Cortex",
     "Brain - Cerebellum",
     "Heart - Left Ventricle",
@@ -39,9 +41,25 @@ SENSITIVE_TISSUES = {
     "Kidney - Cortex",
     "Lung",
     "Adrenal Gland",
+}
+
+# TIER 2 — secondary sensitive tissues: a soft flag requires expression in at
+# least ``gtex_tier2_min_tissues`` of these above the (higher) standard threshold.
+TIER2_SENSITIVE_TISSUES = {
     "Small Intestine - Terminal Ileum",
     "Colon - Sigmoid",
+    "Spleen",
+    "Skin - Sun Exposed (Lower leg)",
+    "Whole Blood",
 }
+
+# All tissues considered by the safety filter (union of both tiers).
+SENSITIVE_TISSUES = TIER1_VITAL_TISSUES | TIER2_SENSITIVE_TISSUES
+
+# Neutral multiplier for an unflagged target. The tier-1 and tier-2 penalties are
+# config-driven (config.gtex_tier1_penalty / gtex_tier2_penalty); tier 1 takes
+# precedence over tier 2.
+NO_PENALTY = 1.00
 
 # Appended to the safety_note of flagged genes: a high-expression flag is a
 # prompt for review, not a verdict — for tissue-specific factors it can reflect
@@ -104,25 +122,37 @@ def _empty_assessment(gene: str) -> dict:
     return {
         "gene": gene,
         "safety_flag": False,
+        "tier1_flag": False,
+        "tier2_flag": False,
+        "tier1_high_tissues": {},
+        "tier2_high_tissues": {},
         "high_expression_tissues": [],
+        "max_vital_tpm": 0.0,
         "max_tpm": 0.0,
         "tissue_count_above_threshold": 0,
+        "safety_penalty": NO_PENALTY,
         "safety_note": "",
     }
 
 
 def assess_safety(
     gene: str,
+    vital_tpm_threshold: float = config.gtex_vital_tpm_threshold,
     tpm_threshold: float = config.gtex_tpm_threshold,
-    min_tissues: int = config.gtex_min_tissues,
+    tier2_min_tissues: int = config.gtex_tier2_min_tissues,
+    tier1_penalty: float = config.gtex_tier1_penalty,
+    tier2_penalty: float = config.gtex_tier2_penalty,
 ) -> dict[str, Any]:
-    """Assess on-target normal-tissue safety risk for a gene from GTEx.
+    """Assess on-target normal-tissue safety risk for a gene from GTEx (two-tier).
 
-    Counts sensitive tissues whose median TPM exceeds ``tpm_threshold``; if at
-    least ``min_tissues`` qualify, the gene is flagged as a potential safety
-    concern (deprioritized downstream, not eliminated). ``max_tpm`` is the
-    highest median TPM across the sensitive tissues. Returns an unflagged
-    assessment with empty lists if the gene is not in GTEx.
+    TIER 1 (vital organs): expression above ``vital_tpm_threshold`` in ANY single
+    tier-1 tissue is a hard flag (``tier1_flag``), penalty ``tier1_penalty``.
+    TIER 2 (secondary sensitive tissues): expression above ``tpm_threshold`` in at
+    least ``tier2_min_tissues`` tier-2 tissues is a soft flag (``tier2_flag``),
+    penalty ``tier2_penalty``. Tier 1 takes precedence when both fire.
+
+    A flag deprioritizes the target downstream (score × penalty), never eliminates
+    it. Returns an unflagged, no-penalty assessment if the gene is not in GTEx.
     """
     if _GTEX is None or gene not in _GTEX.index:
         return _empty_assessment(gene)
@@ -133,28 +163,61 @@ def assess_safety(
     if isinstance(row, pd.DataFrame):
         row = row.max(numeric_only=True)
 
-    present_tissues = [t for t in SENSITIVE_TISSUES if t in row.index]
-    tissue_tpm = {t: float(row[t]) for t in present_tissues}
+    # Tier 1 — vital organs (hard flag on any single organ over the vital threshold).
+    tier1_tpm = {t: float(row[t]) for t in TIER1_VITAL_TISSUES if t in row.index}
+    tier1_high_tissues = {
+        t: tpm for t, tpm in tier1_tpm.items() if tpm > vital_tpm_threshold
+    }
+    tier1_flag = len(tier1_high_tissues) >= 1
+    max_vital_tpm = max(tier1_tpm.values()) if tier1_tpm else 0.0
 
+    # Tier 2 — secondary tissues (soft flag once enough clear the standard threshold).
+    tier2_tpm = {t: float(row[t]) for t in TIER2_SENSITIVE_TISSUES if t in row.index}
+    tier2_high_tissues = {
+        t: tpm for t, tpm in tier2_tpm.items() if tpm > tpm_threshold
+    }
+    tier2_flag = len(tier2_high_tissues) >= tier2_min_tissues
+
+    # Tier 1 penalty takes precedence over tier 2.
+    if tier1_flag:
+        safety_penalty = tier1_penalty
+    elif tier2_flag:
+        safety_penalty = tier2_penalty
+    else:
+        safety_penalty = NO_PENALTY
+
+    safety_flag = tier1_flag or tier2_flag
+    # Backward-compatible union field: all tissues over their tier's threshold.
     high_expression_tissues = sorted(
-        t for t, tpm in tissue_tpm.items() if tpm > tpm_threshold
+        set(tier1_high_tissues) | set(tier2_high_tissues)
     )
-    count = len(high_expression_tissues)
-    max_tpm = max(tissue_tpm.values()) if tissue_tpm else 0.0
-    flagged = count >= min_tissues
+    all_tpm = {**tier1_tpm, **tier2_tpm}
+    max_tpm = max(all_tpm.values()) if all_tpm else 0.0
 
-    note = (
-        f"High normal tissue expression in {count} sensitive tissues — "
-        f"review before advancing. {TF_CONTEXT_CAVEAT}"
-        if flagged
-        else ""
-    )
+    if tier1_flag:
+        note = (
+            f"Vital-organ expression over {vital_tpm_threshold} TPM in "
+            f"{sorted(tier1_high_tissues)} — hard safety flag. {TF_CONTEXT_CAVEAT}"
+        )
+    elif tier2_flag:
+        note = (
+            f"Elevated expression in {len(tier2_high_tissues)} secondary sensitive "
+            f"tissues — soft safety flag. {TF_CONTEXT_CAVEAT}"
+        )
+    else:
+        note = ""
 
     return {
         "gene": gene,
-        "safety_flag": flagged,
+        "safety_flag": safety_flag,
+        "tier1_flag": tier1_flag,
+        "tier2_flag": tier2_flag,
+        "tier1_high_tissues": tier1_high_tissues,
+        "tier2_high_tissues": tier2_high_tissues,
         "high_expression_tissues": high_expression_tissues,
+        "max_vital_tpm": max_vital_tpm,
         "max_tpm": max_tpm,
-        "tissue_count_above_threshold": count,
+        "tissue_count_above_threshold": len(high_expression_tissues),
+        "safety_penalty": safety_penalty,
         "safety_note": note,
     }

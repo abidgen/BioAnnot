@@ -15,10 +15,11 @@ from src.utils import load_disease_context
 
 log = logging.getLogger("bio_annot.network")
 
-# Multiplier applied to a flagged target's composite score (GTEx safety filter):
-# deprioritize a target with high normal-tissue expression without eliminating it.
-# Centralized in src.config (env-configurable).
-SAFETY_PENALTY = config.safety_penalty
+# The GTEx safety multiplier applied to a flagged target's composite score is
+# computed per-tier in src.filters.gtex_safety (config.gtex_tier1_penalty for a
+# tier-1 flag, config.gtex_tier2_penalty for tier-2, else 1.00) and carried on
+# each record's safety_assessment as ``safety_penalty``; network.py reads that
+# value rather than deriving its own.
 
 _NODE_ATTRS = (
     "functions",
@@ -164,9 +165,9 @@ def compute_priority_scores(
         × confidence × safety_penalty
 
     The five weights come from src.config (defaults 0.25 / 0.15 / 0.35 / 0.10 /
-    0.15, validated to sum to 1.0). ``safety_penalty`` is SAFETY_PENALTY (0.75)
-    for GTEx-flagged targets, else
-    1.0. ``cellxgene_score`` rewards targets with measured single-cell expression
+    0.15, validated to sum to 1.0). ``safety_penalty`` is the per-tier GTEx
+    multiplier carried on the record (0.60 for a tier-1 vital-organ flag, 0.80 for
+    a tier-2-only flag, else 1.0). ``cellxgene_score`` rewards targets with measured single-cell expression
     (1.0 for ≥3 cell types, 0.5 for ≥1, 0.0 otherwise). disease_score is capped
     at 1.0 in the composite (the raw, uncapped value is still reported).
     """
@@ -214,10 +215,14 @@ def compute_priority_scores(
         )
 
         # GTEx safety penalty: deprioritize (don't eliminate) targets with high
-        # normal-tissue expression by scaling the composite by 0.75.
+        # normal-tissue expression by scaling the composite by the per-tier
+        # multiplier already computed on the safety assessment (0.60 tier-1 vital,
+        # 0.80 tier-2, else 1.0).
         safety = attrs.get("safety_assessment") or {}
         safety_flag = bool(safety.get("safety_flag", False))
-        safety_penalty = SAFETY_PENALTY if safety_flag else 1.0
+        tier1_flag = bool(safety.get("tier1_flag", False))
+        tier2_flag = bool(safety.get("tier2_flag", False))
+        safety_penalty = float(safety.get("safety_penalty", 1.0))
 
         composite = (
             config.weight_betweenness * betweenness[node]
@@ -238,8 +243,13 @@ def compute_priority_scores(
                 "cellxgene_score": cellxgene_score,
                 "confidence": confidence,
                 "safety_flag": safety_flag,
-                "safety_penalty_applied": safety_flag,
+                "tier1_flag": tier1_flag,
+                "tier2_flag": tier2_flag,
+                "safety_penalty": safety_penalty,
+                "safety_penalty_applied": safety_penalty < 1.0,
+                "tier1_high_tissues": safety.get("tier1_high_tissues", {}),
                 "high_expression_tissues": safety.get("high_expression_tissues", []),
+                "max_vital_tpm": safety.get("max_vital_tpm", 0.0),
                 "max_tpm": safety.get("max_tpm", 0.0),
                 "pathways": attrs.get("pathways", []),
                 "disease_associations": disease_assocs,

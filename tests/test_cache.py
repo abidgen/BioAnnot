@@ -81,10 +81,10 @@ def test_cache_key_changes_with_census_version():
     assert make_cache_key("TP53", a) != make_cache_key("TP53", b)
 
 def test_cache_key_unaffected_by_non_key_fields():
-    # safety_penalty is a scoring weight (applied in network.py), not an
-    # extract/merge/enrich input, so it is part of NEITHER cache key.
-    a = _config(safety_penalty=0.75)
-    b = _config(safety_penalty=0.50)
+    # layout_seed only affects visualization layout, not the extract/merge/enrich
+    # output, so it is part of NEITHER cache key.
+    a = _config(layout_seed=42)
+    b = _config(layout_seed=99)
     assert make_cache_key("TP53", a) == make_cache_key("TP53", b)
     assert make_extract_key("TP53", a) == make_extract_key("TP53", b)
 

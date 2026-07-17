@@ -466,8 +466,11 @@ _FINAL_KEY_CONFIG_FIELDS = (
     "enable_cellxgene",
     "string_min_score",
     "string_limit",
+    "gtex_vital_tpm_threshold",
     "gtex_tpm_threshold",
-    "gtex_min_tissues",
+    "gtex_tier2_min_tissues",
+    "gtex_tier1_penalty",
+    "gtex_tier2_penalty",
 )
 
 
@@ -821,6 +824,37 @@ async def main() -> None:
     scores = compute_priority_scores(G, config.disease_context)
     save_prioritized_tsv(scores, str(RUN_DIR / "prioritized_targets.tsv"))
     log.info("Top 5 targets: %s", [s["gene"] for s in scores[:5]])
+
+    # Build the report's supporting assets, then the self-contained HTML itself.
+    # visualize_network.py (PNG plots) and export_cytoscape.py (network JSON) run
+    # first so the HTML can embed them; each is best-effort — a failure logs a
+    # warning and the report falls back to placeholder cards rather than crashing.
+    # RUN_DIR pins both children to THIS run (a fresh process would mint a new
+    # timestamp and read the wrong, empty run).
+    report_env = {**os.environ, "RUN_DIR": str(RUN_DIR)}
+    for script in ("visualize_network.py", "scripts/export_cytoscape.py"):
+        try:
+            result = subprocess.run(
+                [sys.executable, script], check=False, env=report_env
+            )
+            if result.returncode != 0:
+                log.warning(
+                    "%s exited %d — report will use placeholders for its output",
+                    script, result.returncode,
+                )
+        except Exception:  # noqa: BLE001 — asset build is best-effort
+            log.warning("Could not run %s (report will use placeholders)", script)
+
+    # Generate the self-contained HTML report (needs final_annotations.json and
+    # prioritized_targets.tsv, written above). Isolated in try/except so a
+    # rendering bug never fails an otherwise-complete run.
+    try:
+        from scripts.generate_report import generate_report
+
+        report_path = generate_report(RUN_DIR)
+        log.info("Wrote HTML report → %s", report_path)
+    except Exception:  # noqa: BLE001 — report is a convenience artifact, not core
+        log.exception("Failed to generate HTML report (run outputs are intact)")
 
     # Prune stale cache files (old keys left by prior synonym/config changes) so
     # the cache doesn't grow unbounded. Skipped on FORCE_RERUN (the whole cache is

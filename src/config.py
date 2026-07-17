@@ -72,11 +72,20 @@ class PipelineConfig:
     string_limit: int = field(
         default_factory=lambda: int(os.getenv("STRING_LIMIT", "50")))
 
-    # GTEx
+    # GTEx (two-tier normal-tissue safety filter)
+    # Tier 1 (vital organs): any single organ above this TPM → hard flag.
+    gtex_vital_tpm_threshold: float = field(
+        default_factory=lambda: float(os.getenv("GTEX_VITAL_TPM_THRESHOLD", "5.0")))
+    # Tier 2 (secondary sensitive tissues): ≥ gtex_tier2_min_tissues above this TPM → soft flag.
     gtex_tpm_threshold: float = field(
         default_factory=lambda: float(os.getenv("GTEX_TPM_THRESHOLD", "10.0")))
-    gtex_min_tissues: int = field(
-        default_factory=lambda: int(os.getenv("GTEX_MIN_TISSUES", "3")))
+    gtex_tier2_min_tissues: int = field(
+        default_factory=lambda: int(os.getenv("GTEX_TIER2_MIN_TISSUES", "2")))
+    # Composite-score multipliers for a flagged target (tier 1 takes precedence).
+    gtex_tier1_penalty: float = field(
+        default_factory=lambda: float(os.getenv("GTEX_TIER1_PENALTY", "0.60")))
+    gtex_tier2_penalty: float = field(
+        default_factory=lambda: float(os.getenv("GTEX_TIER2_PENALTY", "0.80")))
 
     # CellxGene
     enable_cellxgene: bool = field(
@@ -101,8 +110,6 @@ class PipelineConfig:
         default_factory=lambda: float(os.getenv("WEIGHT_DRUGGABILITY", "0.10")))
     weight_cellxgene: float = field(
         default_factory=lambda: float(os.getenv("WEIGHT_CELLXGENE", "0.15")))
-    safety_penalty: float = field(
-        default_factory=lambda: float(os.getenv("SAFETY_PENALTY", "0.75")))
 
     # Fuzzy matching
     fuzzy_threshold: int = field(
