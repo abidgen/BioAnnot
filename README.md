@@ -22,8 +22,9 @@ lives in [`src/llm.py`](src/llm.py); and all pathway canonicalization (exact / s
 fuzzy matching) is shared from [`src/pathways.py`](src/pathways.py). The orchestrator adds
 an on-disk **resume cache** (re-runs skip genes already computed under the same inputs), a
 **progress bar**, and an end-of-run **report** summarizing gene outcomes, pathway quality,
-LLM token usage, estimated cost, and runtime. A `tests/` suite (68 tests) covers config,
-caching, pathway matching, retry, network scoring, and the run-stats accounting.
+LLM token usage, estimated cost, and runtime. A `tests/` suite (95 tests) covers config,
+caching, pathway matching, retry, network scoring, the two-tier GTEx safety filter, the HTML
+report, and the run-stats accounting.
 
 > For the full per-stage logic, the composite-score model, the cache internals, and the
 > **caveats** that affect how to read the outputs, see [`docs/PIPELINE.md`](docs/PIPELINE.md).
@@ -82,7 +83,8 @@ inputs/target_genes.txt
 │   build graph (pathway_comembership, direct_inter-   │
 │   action, string_interaction edges; + STRING         │
 │   satellite nodes) + compute priority scores         │
-│   (cellxgene_score term; GTEx-flagged ×0.75 penalty) │
+│   (cellxgene_score term; GTEx tier-1 ×0.60 /          │
+│    tier-2 ×0.80 safety penalty)                       │
 └──────────────────────────────────────────────────────┘
         │
         ▼
@@ -109,8 +111,10 @@ output is factual rather than free text, so its PPI partners **bypass the LLM ex
 merger** and are attached to each merged record directly, feeding `network.py` as
 `string_interaction` edges (and satellite interactor nodes). Likewise, the GTEx safety
 filter ([`src/filters/gtex_safety.py`](src/filters/gtex_safety.py)) is a lookup, not an LLM
-call: it attaches a `safety_assessment` to each merged record so `network.py` can
-deprioritize targets that are highly expressed in sensitive normal tissues. The CellxGene
+call: it attaches a **two-tier** `safety_assessment` to each merged record so `network.py`
+can deprioritize targets that are highly expressed in sensitive normal tissues — a tier-1
+vital-organ flag applies a ×0.60 composite penalty, a tier-2 secondary-tissue flag ×0.80
+(see [Normal-tissue safety](#quality-gates)). The CellxGene
 Census fetcher ([`src/fetchers/cellxgene.py`](src/fetchers/cellxgene.py)) likewise bypasses
 the LLM: it measures mean per-cell-type expression in the configured tissue, attaches a
 `cellxgene_expression` block to each record, unions the top cell types into
@@ -177,7 +181,7 @@ Fill these into your `.env` file (never commit it — it is git-ignored):
 | `MERGE_MODEL` | Optional | Model for multi-source merge (default `claude-sonnet-4-6`) | — |
 | `ENABLE_CELLXGENE` | Optional | Toggle the CellxGene Census single-cell step (default `true`) | — |
 | `CENSUS_VERSION` | Optional | Pinned CellxGene Census release for reproducibility (default `2024-07-01`) | — |
-| `CENSUS_TISSUE` | Optional | `tissue_general` to query for single-cell expression (default `lung`) | — |
+| `CENSUS_TISSUE` | Optional | `tissue_general` to query for single-cell expression (default `lung`). **Must exactly match** a Census `tissue_general` category — the filter is a case-sensitive string equality, so `adrenal gland` works but `Adrenal gland` or `muscle` (the muscle category is `musculature`) silently return zero cells | — |
 | `CENSUS_MIN_CELLS` | Optional | Drop cell types with fewer cells than this (default `50`) | — |
 | `CENSUS_CACHE_DIR` | Optional | Where per-(gene, tissue) Census results are cached (default `refs/census_cache/`) | — |
 | `RUN_DIR` | Optional | Directory this run writes its artifacts to (default `outputs/runs/{timestamp}/`, freshly timestamped per run). Set it to pin a run to a specific directory, or — for a reader tool — to load a specific past run instead of `outputs/latest` | — |
@@ -192,12 +196,17 @@ Fill these into your `.env` file (never commit it — it is git-ignored):
 | `LOG_LEVEL` | Optional | Logging verbosity (default `INFO`) | — |
 
 Additional tunables (all optional, with sensible defaults) are read by
-[`src/config.py`](src/config.py): `MAX_TOKENS`, `PUBMED_MAX_RESULTS`, `SEMAPHORE_LIMIT`,
-`STRING_MIN_SCORE`, `STRING_LIMIT`, `GTEX_TPM_THRESHOLD`, `GTEX_MIN_TISSUES`, the scoring
+[`src/config.py`](src/config.py): `MAX_TOKENS`, `SEMAPHORE_LIMIT`, `STRING_MIN_SCORE`,
+`STRING_LIMIT`, the PubMed fetch depth (`PUBMED_MAX_RESULTS` = relevance-ranked candidate
+pool, default `50`; `PUBMED_EXTRACT_LIMIT` = best N passed to the extractor, default `20`),
+the extractor's `EXTRACTION_MAX_WORDS` truncation budget (default `5000`), the two-tier GTEx
+safety filter (`GTEX_VITAL_TPM_THRESHOLD` = tier-1 threshold, default `5.0`;
+`GTEX_TPM_THRESHOLD` = tier-2 threshold, default `10.0`; `GTEX_TIER2_MIN_TISSUES`, default
+`2`; `GTEX_TIER1_PENALTY`, default `0.60`; `GTEX_TIER2_PENALTY`, default `0.80`), the scoring
 weights (`WEIGHT_BETWEENNESS`, `WEIGHT_DEGREE`, `WEIGHT_DISEASE`, `WEIGHT_DRUGGABILITY`,
-`WEIGHT_CELLXGENE` — validated to sum to `1.0` at startup), `SAFETY_PENALTY`,
-`SYNONYM_CANDIDATES`, and the plot layout (`LAYOUT_SEED`, `LAYOUT_K`). See
-[`env.example`](env.example) for a working starting point.
+`WEIGHT_CELLXGENE` — validated to sum to `1.0` at startup), `SYNONYM_CANDIDATES`, and the plot
+layout (`LAYOUT_SEED`, `LAYOUT_K`). See [`env.example`](env.example) for a working starting
+point.
 
 ### Disease context
 
@@ -401,9 +410,10 @@ bio-annotation-pipeline/
 │
 ├── scripts/
 │   ├── build_synonyms.py       ← build/update refs/pathway_synonyms.json
-│   └── export_cytoscape.py     ← export network to Cytoscape.js JSON + CX2
+│   ├── export_cytoscape.py     ← export network to Cytoscape.js JSON + CX2
+│   └── generate_report.py      ← self-contained HTML report (auto-run at end of pipeline)
 │
-├── tests/                      ← pytest suite (68 tests)
+├── tests/                      ← pytest suite (95 tests)
 │
 ├── pipeline.py                 ← main orchestrator (run this)
 ├── batch_pipeline.py           ← Anthropic Batch API variant for 50+ genes
@@ -420,10 +430,11 @@ bio-annotation-pipeline/
             ├── annotations.jsonl       ← merged annotation per gene (newline-delimited JSON)
             ├── final_annotations.json  ← full merged dict keyed by gene symbol
             ├── target_network.gpickle  ← NetworkX graph
-            ├── target_network_cytoscape*.json / *.cx2  ← Cytoscape exports (after script)
+            ├── target_network_cytoscape*.json / *.cx2  ← Cytoscape exports (auto-generated)
             ├── prioritized_targets.tsv ← ranked target table
+            ├── bioannot_report.html    ← self-contained HTML report (auto-generated)
             ├── pipeline.log            ← this run's log
-            └── plots/                  ← visualization PNGs (after visualize_network.py)
+            └── plots/                  ← visualization PNGs (auto-generated)
 ```
 
 ## Output Files
@@ -446,14 +457,17 @@ directory (i.e. `<run>/` means `outputs/runs/{timestamp}/`, reachable as `output
   `NON-CANONICAL: `), `disease_associations` (each with `role` and `evidence_strength`),
   `interactors`, `druggability_notes`, `confidence`, `source_count`, `source_pmids`, and
   `merged_at`. When the enrichment steps run, records also carry `string_interactors`,
-  `safety_assessment` (GTEx), and `cellxgene_expression` (`tissue`, `census_version`, the
-  top 10 `{cell_type, mean_expr}` entries, and `cell_type_count`); the top measured cell
-  types also appear in `cellular_states` with a `CellxGene: ` prefix.
+  `safety_assessment` (the two-tier GTEx result: `safety_flag`, `tier1_flag`, `tier2_flag`,
+  `tier1_high_tissues` / `tier2_high_tissues` as `{tissue: TPM}`, `max_vital_tpm`, `max_tpm`,
+  `safety_penalty`, and `high_expression_tissues`), and `cellxgene_expression` (`tissue`,
+  `census_version`, the top 10 `{cell_type, mean_expr}` entries, and `cell_type_count`); the
+  top measured cell types also appear in `cellular_states` with a `CellxGene: ` prefix.
 
 - **`<run>/prioritized_targets.tsv`** — the ranked target table, one row per gene sorted
   by `composite` descending. Columns: `gene`, `composite`, `betweenness`, `degree`,
   `disease_score`, `druggability_bonus`, `cellxgene_score`, `confidence`, `safety_flag`,
-  `safety_penalty_applied`, `high_expression_tissues`, `max_tpm`, `pathways`,
+  `tier1_flag`, `tier2_flag`, `safety_penalty`, `safety_penalty_applied`,
+  `tier1_high_tissues`, `high_expression_tissues`, `max_vital_tpm`, `max_tpm`, `pathways`,
   `disease_associations` (list/dict fields flattened to pipe-separated strings). The
   composite is:
 
@@ -464,8 +478,9 @@ directory (i.e. `<run>/` means `outputs/runs/{timestamp}/`, reachable as `output
   ```
 
   `cellxgene_score` is `1.0` for genes with measured expression in ≥3 cell types, `0.5` for
-  ≥1, else `0.0`. `safety_penalty` is `0.75` for GTEx-flagged targets and `1.0` otherwise
-  (`safety_penalty_applied` records which). `disease_score` is capped at `1.0` inside the
+  ≥1, else `0.0`. `safety_penalty` is the two-tier GTEx multiplier: `0.60` for a tier-1
+  (vital-organ) flag, `0.80` for a tier-2-only flag, else `1.0` (`safety_penalty_applied`
+  records whether any penalty was applied). `disease_score` is capped at `1.0` inside the
   composite, though the raw uncapped value is still reported in its own column.
 
 - **`<run>/target_network.gpickle`** — the NetworkX graph (a `MultiDiGraph`) pickled to
@@ -479,6 +494,11 @@ directory (i.e. `<run>/` means `outputs/runs/{timestamp}/`, reachable as `output
   only target nodes are scored and written to the TSV. Pass
   `build_target_network(..., include_interactor_nodes=False)` for a target-only graph with
   no satellites (cleaner for larger gene sets). Load with `pickle.load(open(path, "rb"))`.
+
+- **`<run>/bioannot_report.html`** — a self-contained HTML report generated automatically
+  at the end of every run (see [HTML Report](#html-report)). Opens by double-click; bundles
+  the per-gene annotations, priority ranking, an interactive network graph, the plots, and a
+  pathway matrix into one file.
 
 ## Example Results
 
@@ -562,7 +582,9 @@ cache (no fetch/extract) and prunes the stale-key files left behind — note the
   "confidence": 0.88,
   "source_count": 3,
   "string_interactors": ["..."],
-  "safety_assessment": { "safety_flag": true, "max_tpm": 0 },
+  "safety_assessment": { "safety_flag": true, "tier1_flag": true, "tier2_flag": false,
+                         "tier1_high_tissues": { "Liver": 42.5 }, "max_vital_tpm": 42.5,
+                         "safety_penalty": 0.6 },
   "cellxgene_expression": { "tissue": "lung", "cell_type_count": 12, "top_cell_types": ["..."] }
 }
 ```
@@ -578,7 +600,8 @@ cache (no fetch/extract) and prunes the stale-key files left behind — note the
 | FOXF1 | 0.380 | 0.180 | 0.068 | 3.0 | 1.0 | 0.88 | True |
 
 (`disease_score` is reported uncapped here but capped at 1.0 inside the composite; the full TSV
-also carries `druggability_bonus`, `safety_penalty_applied`, `high_expression_tissues`,
+also carries `druggability_bonus`, `tier1_flag`, `tier2_flag`, `safety_penalty`,
+`safety_penalty_applied`, `tier1_high_tissues`, `high_expression_tissues`, `max_vital_tpm`,
 `max_tpm`, `pathways`, and `disease_associations`.)
 
 ### Plots (`python visualize_network.py` → `<run>/plots/`)
@@ -603,7 +626,8 @@ These are enforced automatically by the pipeline:
 | PMID validation | Only digits, 7–8 chars | Drop invalid, log |
 | Pathway canonicity | Resolve vs Reactome reference: exact → synonym map → gene-token-guarded fuzzy | Map to canonical name; unresolved get `NON-CANONICAL: ` prefix |
 | Source agreement | Pathway needs ≥2 sources unless confidence ≥ 0.85 | Merger rule |
-| Normal-tissue safety | >10 TPM in ≥3 sensitive GTEx tissues | Flag and apply 0.75 composite penalty (deprioritize) |
+| Normal-tissue safety (tier 1) | >5 TPM in **any** vital organ (brain, heart, liver, kidney, lung, adrenal) | Hard flag; ×0.60 composite penalty (deprioritize) |
+| Normal-tissue safety (tier 2) | >10 TPM in ≥2 secondary tissues (intestine, colon, spleen, skin, blood) | Soft flag; ×0.80 composite penalty (tier 1 takes precedence) |
 | Rate limiting | Max 3 concurrent gene fetches | `asyncio.Semaphore(3)` |
 
 ## Batch Mode
@@ -625,8 +649,9 @@ writing into the same per-run directory.
 
 ## Visualization
 
-After a pipeline run has produced `target_network.gpickle` and `prioritized_targets.tsv` in
-its run directory, generate plots with:
+`pipeline.py` runs this automatically at the end of every run (to feed the HTML report), so
+the four PNGs normally already exist in `<run>/plots/`. To regenerate them standalone from an
+existing run's `target_network.gpickle` and `prioritized_targets.tsv`:
 
 ```bash
 python visualize_network.py
@@ -651,8 +676,10 @@ subdirectory (`outputs/latest/plots/`):
 ## Cytoscape Export
 
 [`scripts/export_cytoscape.py`](scripts/export_cytoscape.py) converts the most recent run's
-`target_network.gpickle` into Cytoscape-importable files (no pipeline rerun; resolves the run
-via `outputs/latest`, or `RUN_DIR` for a specific one):
+`target_network.gpickle` into Cytoscape-importable files. `pipeline.py` runs it automatically
+at the end of every run (the HTML report's Network Graph tab embeds its JSON), so these files
+normally already exist; run it standalone to regenerate them (no pipeline rerun; resolves the
+run via `outputs/latest`, or `RUN_DIR` for a specific one):
 
 ```bash
 python scripts/export_cytoscape.py
@@ -676,17 +703,50 @@ raw-cache hits whose merge + enrich rerun with no fetch/extract API calls), path
 hit rate), the estimated USD cost, and total runtime. During the run a `tqdm` progress bar
 shows the current gene and whether it was computed or served from the resume cache.
 
+## HTML Report
+
+Every `pipeline.py` run finishes by writing a **single self-contained HTML report** to
+`<run>/bioannot_report.html` (reachable as `outputs/latest/bioannot_report.html`). It opens
+by double-clicking — no server — and bundles the whole run into five top-level tabs, with tab
+state preserved in the URL hash (the browser back button and shareable `#`-links work):
+
+- **Genes** — one panel per gene (confidence badge, safety banner, functions, cellular states,
+  pathways, disease-association table, GeneCards-linked interactors, PubMed-linked sources,
+  and the CellxGene table).
+- **Priority Ranking** — the full ranked table with sortable columns and color-coded safety
+  tiers (red / amber / green).
+- **Network Graph** — an interactive D3 force graph (node size ∝ composite, color by safety
+  tier, edges colored by type; hover for details, click a node to jump to its gene).
+- **Plots** — the four PNGs embedded inline as base64.
+- **Pathway Matrix** — a genes × canonical-pathways presence grid.
+
+To build the report, the pipeline first runs `visualize_network.py` (PNG plots) and
+`scripts/export_cytoscape.py` (the network JSON the graph tab embeds), then
+[`scripts/generate_report.py`](scripts/generate_report.py). Each asset step is best-effort:
+if one fails the run still completes and the report renders with placeholder cards. You can
+also regenerate the report standalone from an existing run's outputs:
+
+```bash
+python scripts/generate_report.py    # resolves outputs/latest, or set RUN_DIR
+```
+
+> **Self-containment caveat.** The report is fully offline **except** the Network Graph tab,
+> which loads D3 from cdnjs (the network *data* is inlined, so only the D3 library needs
+> internet). Every other tab — including the base64-embedded plots — works with no network.
+
 ## Tests
 
 ```bash
-pytest                      # 68 tests
+pytest                      # 95 tests
 ```
 
 The suite covers the config dataclass and weight validation, the two-layer resume cache
 (raw/final key scoping, `FORCE_REMERGE`/`FORCE_RERUN` semantics, and `run_gene`'s
 final→raw→full execution order with cached/remerged accounting), pathway canonicalization
 (exact / synonym / fuzzy + the gene-token guard), per-gene retry behavior, network scoring,
-and the run-stats/cost accounting.
+the two-tier GTEx safety filter (tier thresholds, precedence, config-driven penalties), the
+HTML report generator (tabs, links, safety banners, plot placeholders), and the
+run-stats/cost accounting.
 
 ## Extension Points
 
@@ -694,9 +754,10 @@ Four enrichment/output layers are now **implemented**:
 
 - **STRING PPI enrichment** (`src/fetchers/string_db.py`) — see the Architecture section and
   the `string_interaction` edges in each run's `target_network.gpickle`.
-- **GTEx safety filter** (`src/filters/gtex_safety.py`) — flags genes highly expressed in
-  sensitive normal tissues (>10 TPM in ≥3 tissues) and applies a 0.75 composite penalty in
-  `network.py`. The GTEx v8 median-TPM table is auto-downloaded and cached at
+- **Two-tier GTEx safety filter** (`src/filters/gtex_safety.py`) — a tier-1 flag fires on
+  >5 TPM in any single vital organ (×0.60 penalty), a tier-2 flag on >10 TPM in ≥2 secondary
+  tissues (×0.80; tier 1 wins when both fire); `network.py` applies the per-tier penalty in
+  the composite. The GTEx v8 median-TPM table is auto-downloaded and cached at
   `refs/gtex_median_tpm.gct.gz` on first use.
 - **CellxGene Census single-cell grounding** (`src/fetchers/cellxgene.py`) — mean
   per-cell-type expression per gene in the configured tissue, grounding `cellular_states` and

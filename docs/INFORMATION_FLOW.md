@@ -71,7 +71,7 @@ model fills in `functions`, `cellular_states`, `pathways`,
   extract only what the text states, do not import outside knowledge…
   use exact Reactome pathway names… never invent interactors or PMIDs."*
   The active disease context (`cancer`) is injected so extraction stays on-topic.
-- **Truncation:** input text capped at ~3000 words to avoid context overflow.
+- **Truncation:** input text capped at `EXTRACTION_MAX_WORDS` (default 5000) to avoid context overflow.
 - **Caching:** the static system block + tool schema are marked
   `cache_control: ephemeral`, so they're billed once and read from cache after.
   FOXF1 PubMed call logged: `input=6063 output=1104 cache_read=0 cache_created=1339`,
@@ -202,29 +202,33 @@ final score.
 downloaded once and cached at `refs/gtex_median_tpm.gct.gz`. Parsed at import
 into a symbol-indexed DataFrame.
 
-**Logic (`assess_safety`):**
+**Logic (`assess_safety`) — two-tier:**
 1. Look up the gene's row. If a symbol maps to multiple Ensembl rows, collapse by
    the **max** median TPM per tissue (worst-case assessment).
-2. Restrict to a fixed set of **9 sensitive normal tissues** (`SENSITIVE_TISSUES`):
-   Brain-Cortex, Brain-Cerebellum, Heart-Left Ventricle, Liver, Kidney-Cortex,
-   Lung, Adrenal Gland, Small Intestine-Terminal Ileum, Colon-Sigmoid.
-3. Count how many of those tissues have median TPM **> 10.0**
-   (`gtex_tpm_threshold`).
-4. If **≥ 3** sensitive tissues qualify (`gtex_min_tissues`), set
-   `safety_flag = True`.
+2. **Tier 1 (vital organs):** if median TPM exceeds `GTEX_VITAL_TPM_THRESHOLD`
+   (**> 5.0**) in **any single** vital organ — Brain-Cortex, Brain-Cerebellum,
+   Heart-Left Ventricle, Liver, Kidney-Cortex, Lung, Adrenal Gland — set
+   `tier1_flag = True` (hard flag).
+3. **Tier 2 (secondary tissues):** if median TPM exceeds `GTEX_TPM_THRESHOLD`
+   (**> 10.0**) in **≥ `GTEX_TIER2_MIN_TISSUES`** (2) of the secondary tissues —
+   Small Intestine-Terminal Ileum, Colon-Sigmoid, Spleen, Skin-Sun Exposed, Whole
+   Blood — set `tier2_flag = True` (soft flag).
+4. `safety_flag = tier1_flag or tier2_flag`.
 
 This is the classic **on-target / off-tumor** concern: a drug hitting a target
 that's also highly expressed in healthy liver/brain/heart risks toxicity there.
 
-**Effect on the score:** a flagged gene's composite is multiplied by
-**`safety_penalty = 0.75`** — deprioritized, *not* eliminated (the note even
-warns that for a tissue-specific TF like FOXF1, high normal expression may be
-on-target biology, so it's a "review before advancing" prompt, not a verdict).
+**Effect on the score:** a flagged gene's composite is multiplied by a per-tier
+`safety_penalty` — **×0.60** for a tier-1 vital-organ flag, **×0.80** for a
+tier-2-only flag, else ×1.0 (tier 1 takes precedence). Deprioritized, *not*
+eliminated (the note even warns that for a tissue-specific TF, high normal
+expression may be on-target biology, so it's a "review before advancing" prompt).
+Penalties are config-driven (`GTEX_TIER1_PENALTY`/`GTEX_TIER2_PENALTY`).
 
-**FOXF1 (real run):** flagged — 3 sensitive tissues over threshold
-(Colon-Sigmoid, Lung, Small Intestine), **max 122.1 TPM** in lung. → `×0.75`.
-Of the five genes, only **BRCA1 was not flagged**, which is the single biggest
-reason it tops the ranking despite TP53 having higher centrality.
+> **Note:** the worked FOXF1/TP53 example numbers below (`×0.75`) are from an
+> earlier single-tier run (flat 0.75 penalty, >10 TPM in ≥3 of 9 tissues). The
+> mechanism is now two-tier as described above; the illustrative ranking logic is
+> unchanged (flagged genes are deprioritized relative to clean ones).
 
 ### CellxGene grounding — `src/fetchers/cellxgene.py`
 
@@ -306,7 +310,7 @@ composite = ( 0.25·betweenness
             + 0.10·druggability_bonus      (0.2 if any druggability_notes)
             + 0.15·cellxgene_score )       (1.0 ≥3 cell types, 0.5 ≥1, else 0)
             × confidence
-            × safety_penalty               (0.75 if GTEx-flagged, else 1.0)
+            × safety_penalty               (0.60 tier-1 flag, 0.80 tier-2, else 1.0)
 ```
 
 ### Worked example — why BRCA1 beats TP53

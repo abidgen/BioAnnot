@@ -76,7 +76,7 @@ All fetchers are async with retry; a source with no entry returns `{}` and is si
 ### 3.2 Extract (`run_extract_stage`)
 One LLM call **per source** (`EXTRACTION_MODEL`, default `claude-opus-4-8`) at
 **`temperature=0`** with the `annotate_target` tool **forced** via `tool_choice`, so output is
-always structured. Input text is truncated to ~3000 words. The system prompt embeds the disease
+always structured. Input text is truncated to `EXTRACTION_MAX_WORDS` (default 5000). The system prompt embeds the disease
 context. Every successful per-source extraction is returned **unfiltered** and persisted to
 `{run}/raw/{gene}_raw.json` (in the run's timestamped directory) for provenance.
 
@@ -114,9 +114,12 @@ ambiguous names), optionally triggered after each run via `AUTO_UPDATE_SYNONYMS`
 ### 3.6 Enrich (`run_enrich_stage`) — all non-LLM
 - **STRING**: high-confidence partners (`combined_score ≥ STRING_MIN_SCORE`, default 700),
   attached as `string_interactors`.
-- **GTEx safety**: flags `safety_flag=True` when median TPM exceeds `GTEX_TPM_THRESHOLD`
-  (default 10) in ≥ `GTEX_MIN_TISSUES` (default 3) of nine sensitive tissues; records
-  `high_expression_tissues`, `max_tpm`, and a review note.
+- **GTEx safety** (two-tier): tier 1 sets `tier1_flag` when median TPM exceeds
+  `GTEX_VITAL_TPM_THRESHOLD` (default 5) in **any** vital organ (brain, heart, liver, kidney,
+  lung, adrenal); tier 2 sets `tier2_flag` when TPM exceeds `GTEX_TPM_THRESHOLD` (default 10)
+  in ≥ `GTEX_TIER2_MIN_TISSUES` (default 2) secondary tissues. Records `safety_flag`,
+  `tier1_flag`, `tier2_flag`, `tier1_high_tissues`/`tier2_high_tissues`, `max_vital_tpm`,
+  `max_tpm`, the per-tier `safety_penalty` (0.60 / 0.80 / 1.0), and a review note.
 - **CellxGene** (`ENABLE_CELLXGENE`): mean expression per cell type in `CENSUS_TISSUE` (cell
   types below `CENSUS_MIN_CELLS` dropped); attaches `cellxgene_expression` and unions the top 5
   cell types into `cellular_states` with a `CellxGene: ` prefix.
@@ -151,8 +154,9 @@ composite = ( w_betweenness · betweenness
 | `cellxgene_score` | `1.0` if ≥3 measured cell types, `0.5` if ≥1, else `0.0` | `0.15` |
 
 The five weights live in `config` and are **validated to sum to 1.0 at startup**.
-`confidence` is the merged record's confidence (0–1). `safety_penalty` is `SAFETY_PENALTY`
-(0.75) for GTEx-flagged targets, else 1.0 — a deprioritization, never elimination.
+`confidence` is the merged record's confidence (0–1). `safety_penalty` is the two-tier GTEx
+multiplier — `GTEX_TIER1_PENALTY` (0.60) for a tier-1 vital-organ flag, `GTEX_TIER2_PENALTY`
+(0.80) for a tier-2-only flag, else 1.0 — a deprioritization, never elimination.
 
 ---
 
@@ -164,7 +168,7 @@ re-fetching/re-extracting**:
 
 | Layer | Path | Key digests | Invalidated by |
 |---|---|---|---|
-| **Raw** | `raw/{gene}_{extract_key}.json` | gene, disease context, extraction model, PubMed depth, `EXTRACT_PROMPT_VERSION` | gene / source / disease / extraction-model / prompt-version change |
+| **Raw** | `raw/{gene}_{extract_key}.json` | gene, disease context, extraction model, PubMed depth (`PUBMED_MAX_RESULTS` + `PUBMED_EXTRACT_LIMIT`), `EXTRACTION_MAX_WORDS`, `EXTRACT_PROMPT_VERSION` | gene / source / disease / extraction-model / PubMed-depth / word-budget / prompt-version change |
 | **Final** | `final/{gene}_{full_key}.json` | `extract_key` + synonym-file hash + Reactome-file hash + confidence threshold + merge model + enrich params | any of those, i.e. **also** synonym/reference/threshold/merge/enrich changes |
 
 `make_cache_key` is a backward-compatible alias of `make_full_key`. File fingerprints are
@@ -202,10 +206,12 @@ single-threaded and no `await` splits an increment.
 ## 7. Configuration surface
 
 All read once into `src/config.py` (`PipelineConfig`, re-reads env on each instantiation).
-Grouped: models (`EXTRACTION_MODEL`, `MERGE_MODEL`, `MAX_TOKENS`); pipeline
-(`CONFIDENCE_THRESHOLD`, `PUBMED_MAX_RESULTS`, `SEMAPHORE_LIMIT`, `LOG_LEVEL`); disease
-(`DISEASE_CONTEXT`, `DISEASE_TERMS`); STRING/GTEx thresholds; CellxGene (`ENABLE_CELLXGENE`,
-`CENSUS_*`); scoring weights + `SAFETY_PENALTY`; fuzzy/synonym (`FUZZY_THRESHOLD`,
+Grouped: models (`EXTRACTION_MODEL`, `MERGE_MODEL`, `MAX_TOKENS`, `EXTRACTION_MAX_WORDS`);
+pipeline (`CONFIDENCE_THRESHOLD`, `PUBMED_MAX_RESULTS`, `PUBMED_EXTRACT_LIMIT`,
+`SEMAPHORE_LIMIT`, `LOG_LEVEL`); disease (`DISEASE_CONTEXT`, `DISEASE_TERMS`); STRING
+thresholds; two-tier GTEx (`GTEX_VITAL_TPM_THRESHOLD`, `GTEX_TPM_THRESHOLD`,
+`GTEX_TIER2_MIN_TISSUES`, `GTEX_TIER1_PENALTY`, `GTEX_TIER2_PENALTY`); CellxGene
+(`ENABLE_CELLXGENE`, `CENSUS_*`); scoring weights; fuzzy/synonym (`FUZZY_THRESHOLD`,
 `SYNONYM_*`, `AUTO_UPDATE_SYNONYMS`); cache (`ENABLE_CACHE`, `CACHE_DIR`, `PRUNE_CACHE`,
 `FORCE_RERUN`, `FORCE_REMERGE`); plot layout. See the README env table for defaults.
 
